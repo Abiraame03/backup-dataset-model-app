@@ -73,7 +73,7 @@ def load_models():
     rf_model = joblib.load(rf_path) if os.path.exists(rf_path) else None
     
     # Model 2: MobileNetV2-BiLSTM
-    h5_path = "models/mobilenetv2_bilstm_final(1).h5"
+    h5_path = "models/mobilenetv2_bilstm_final.h5"
     dl_model = tf.keras.models.load_model(h5_path) if os.path.exists(h5_path) else None
     
     # Load DL Metadata
