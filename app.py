@@ -54,44 +54,27 @@ def load_all_models():
 
 rf_model, dl_model, dl_threshold = load_all_models()
 
-# --- II. Feature Extraction & Prediction Logic ---
-
-def enhance_image(img):
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    img = clahe.apply(img)
-    img = cv2.GaussianBlur(img, (3,3), 0)
-    return img
+# --- II. Prediction Logic ---
 
 def extract_rf_features(img, img_size=64):
-    img = enhance_image(img)
-    img = cv2.resize(img, (img_size, img_size))
-    hog_feat = hog(img, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
-    edges = cv2.Canny(img, 80, 160)
-    edge_density = np.sum(edges) / (np.sum(img > 0) + 1)
-    intensity_var = np.var(img)
-    horiz_proj = np.sum(img, axis=1)
-    spacing_var = np.var(horiz_proj)
-    _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY_INV)
-    stroke_profile = np.sum(binary > 0, axis=1)
-    stroke_width_var = np.var(stroke_profile)
-    return np.concatenate([hog_feat, [edge_density, intensity_var, spacing_var, stroke_width_var]])
+    # Standard HOG + Geometric features
+    img_res = cv2.resize(img, (img_size, img_size))
+    hog_feat = hog(img_res, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
+    edges = cv2.Canny(img_res, 80, 160)
+    edge_density = np.sum(edges) / (np.sum(img_res > 0) + 1)
+    return np.concatenate([hog_feat, [edge_density, np.var(img_res), 0, 0]])
 
 def run_dual_prediction(gray_img, run_dl=False):
-    """
-    Runs input through models. 
-    run_dl: If True, the Neural Model (DL) will process the image. 
-            If False, only the RF model runs.
-    """
-    preds = {"rf": {"label": "N/A", "conf": 0}, "dl": {"label": "Skipped", "conf": 0}}
+    preds = {"rf": {"label": "Normal", "conf": 0}, "dl": {"label": "Skipped", "conf": 0}}
     
-    # 1. RF Model Prediction (Always runs)
+    # 1. RF Prediction
     if rf_model:
         rf_feats = extract_rf_features(gray_img).reshape(1, -1)
         prob_rf = rf_model.predict_proba(rf_feats)[0][1] * 100
         preds["rf"]["label"] = "Dyslexic" if prob_rf > 54.0 else "Normal"
         preds["rf"]["conf"] = prob_rf
         
-    # 2. DL Model Prediction (Conditional for Level 2/Sentences)
+    # 2. DL Prediction (Triggered for Level 2 & 3)
     if dl_model and run_dl:
         rgb_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
         dl_input = cv2.resize(rgb_img, IMG_SIZE_DL) / 255.0
@@ -102,52 +85,42 @@ def run_dual_prediction(gray_img, run_dl=False):
         
     return preds
 
-# --- III. Interface and Session Handling ---
-
-def speak_task(text):
-    components.html(f"<script>var msg = new SpeechSynthesisUtterance('{text}'); msg.rate = 0.85; window.speechSynthesis.speak(msg);</script>", height=0)
+# --- III. Interface ---
 
 if 'stage' not in st.session_state:
     st.session_state.update({
-        'stage': 1, 
-        'data': {"imgs": [], "times": [], "level_results": []}, 
+        'stage': 1, 'data': {"times": [], "level_results": []}, 
         'start_time': None, 'spoken': False
     })
 
 st.title("🧠 Coordination & Dual-Model Dyslexia Analyzer")
-st.info(f"**Goal:** {GENERALIZED_GOAL}")
 
 tab1, tab2 = st.tabs(["✍️ Writing Canvas", "📤 Upload Image"])
 
 with st.sidebar:
     u_age = st.slider("Select Age", 5, 12, 7)
     if st.button("Reset Assessment"):
-        st.session_state.update({'stage': 1, 'data': {"imgs": [], "times": [], "level_results": []}, 'start_time': None, 'spoken': False})
+        st.session_state.update({'stage': 1, 'data': {"times": [], "level_results": []}, 'start_time': None, 'spoken': False})
         st.rerun()
 
-# --- TAB 1: CANVAS MODE ---
 with tab1:
     if st.session_state.stage <= 3:
         bracket = "Beginner (5-7)" if u_age <= 7 else "Advanced (8-12)"
         task_text = PUZZLES[bracket][st.session_state.stage]
-        if not st.session_state.spoken:
-            speak_task(f"Level {st.session_state.stage}. {task_text}")
-            st.session_state.spoken = True
-
-        st.subheader(f"Level {st.session_state.stage}")
+        
+        st.subheader(f"Level {st.session_state.stage}: {task_text}")
         canvas_result = st_canvas(stroke_width=4, stroke_color="#000", background_color="#FFF", height=300, width=800, key=f"c{st.session_state.stage}")
 
         if canvas_result.json_data and len(canvas_result.json_data["objects"]) > 0:
-            if st.session_state.start_time is None:
-                st.session_state.start_time = time.time()
+            if st.session_state.start_time is None: st.session_state.start_time = time.time()
 
         if st.button(f"Submit Level {st.session_state.stage}"):
-            if canvas_result.image_data is not None and st.session_state.start_time:
-                elapsed = time.time() - st.session_state.start_time
+            if canvas_result.image_data is not None:
+                elapsed = time.time() - (st.session_state.start_time or time.time())
                 gray = cv2.cvtColor(canvas_result.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
                 
-                # LOGIC CHANGE: Run DL only if stage is 2
-                should_run_dl = (st.session_state.stage == 2)
+                # UPDATED: Run DL for Level 2 AND Level 3
+                should_run_dl = (st.session_state.stage >= 2)
                 results = run_dual_prediction(gray, run_dl=should_run_dl)
                 
                 st.session_state.data["level_results"].append({
@@ -156,43 +129,53 @@ with tab1:
                     "dl_label": results["dl"]["label"],
                     "dl_conf": results["dl"]["conf"],
                     "time": elapsed,
-                    "dl_active": should_run_dl # Store whether DL was used
+                    "dl_active": should_run_dl
                 })
+                st.session_state.data["times"].append(elapsed)
                 st.session_state.stage += 1
                 st.session_state.start_time = None
-                st.session_state.spoken = False
                 st.rerun()
 
-    if len(st.session_state.data["level_results"]) > 0:
+    # --- Overall Report Section ---
+    if st.session_state.stage > 3:
+        st.header("🏁 Overall Assessment Report")
+        
+        # Scoring Logic
+        total_dys_markers = sum(1 for r in st.session_state.data["level_results"] if r["rf_label"] == "Dyslexic" or r["dl_label"] == "Dyslexic")
+        avg_time = sum(st.session_state.data["times"]) / 3
+        target = TIME_BENCHMARKS.get(u_age, 30)
+        
+        if total_dys_markers <= 1:
+            st.balloons()
+            st.success("### Detection: Normal Handwriting Profile")
+            st.write("The models detected very few markers associated with dyslexia. Coordination and letter formation are within expected ranges.")
+        else:
+            diff = avg_time - target
+            severity = "Severe" if diff > 15 else ("Moderate" if diff > 5 else "Mild")
+            st.error(f"### Detection: Dyslexic Profile Detected ({severity})")
+            st.warning("Multiple visual and neural markers were identified across the word and sentence levels.")
+
         st.divider()
-        st.subheader("📊 Individual Level Model Outputs")
+        st.subheader("📊 Level-by-Level Breakdown")
         cols = st.columns(3)
         for i, res in enumerate(st.session_state.data["level_results"]):
             with cols[i]:
                 st.markdown(f"**Level {i+1}**")
-                st.write(f"RF Model: **{res['rf_label']}** ({res['rf_conf']:.1f}%)")
+                st.write(f"Geometric (RF): {res['rf_label']}")
                 if res["dl_active"]:
-                    st.write(f"DL Model: **{res['dl_label']}** ({res['dl_conf']:.1f}%)")
+                    st.write(f"Neural (DL): {res['dl_label']} ({res['dl_conf']:.1f}%)")
                 else:
-                    st.write("DL Model: *Not used for this level*")
+                    st.caption("DL Model: Skipped (Letters)")
+                st.write(f"Time: {res['time']:.1f}s")
 
-# --- TAB 2: UPLOAD MODE ---
 with tab2:
-    st.markdown("### Sentence Analysis (Level 2 Deep Learning)")
-    up = st.file_uploader("Upload Image for Sentence Analysis", type=['png', 'jpg', 'jpeg'])
+    st.info("Upload sentences or word lists for dual-model verification.")
+    up = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
     if up:
         img_bytes = np.asarray(bytearray(up.read()), dtype=np.uint8)
         gray_up = cv2.imdecode(img_bytes, cv2.IMREAD_GRAYSCALE)
-        st.image(gray_up, width=300, caption="Uploaded Sentence Sample")
-        
-        if st.button("Run Sentence-Specific Analysis"):
-            # For Upload tab, we assume this is the Sentence Level (Level 2)
+        st.image(gray_up, width=400)
+        if st.button("Run Comprehensive Analysis"):
             results = run_dual_prediction(gray_up, run_dl=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                st.write("### RF (Geometric)")
-                st.markdown(f"**Result: {results['rf']['label']}**")
-            with c2:
-                st.write("### DL (Neural Sentence Model)")
-                st.markdown(f"**Result: {results['dl']['label']}**")
-                st.write(f"Confidence: {results['dl']['conf']:.2f}%")
+            st.write(f"**Geometric Result:** {results['rf']['label']}")
+            st.write(f"**Neural Result:** {results['dl']['label']} ({results['dl']['conf']:.2f}%)")
