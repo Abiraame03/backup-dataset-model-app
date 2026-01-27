@@ -16,7 +16,7 @@ st.set_page_config(page_title="Dual-Model Dyslexia Analyzer", layout="wide")
 
 # File paths from your repository structure
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
-DL_MODEL_PATH = "mobilenetv2_bilstm_final .h5"  # Matches the filename with space
+DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"  # Matches the filename with space
 THRESHOLD_PATH = "best_threshold.json"
 IMG_SIZE_DL = (160, 160)
 
