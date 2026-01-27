@@ -14,9 +14,9 @@ from streamlit_drawable_canvas import st_canvas
 # --- I. Configuration and Model Loading ---
 st.set_page_config(page_title="Dual-Model Dyslexia Analyzer", layout="wide")
 
-# Filenames from your GitHub root directory
+# File paths from your repository structure
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
-DL_MODEL_PATH = "mobilenetv2_bilstm_best_thr_044 (2).h5"  # Corrected with the space
+DL_MODEL_PATH = "mobilenetv2_bilstm_final .h5"  # Matches the filename with space
 THRESHOLD_PATH = "best_threshold.json"
 IMG_SIZE_DL = (160, 160)
 
@@ -37,10 +37,11 @@ TIME_BENCHMARKS = {5:65, 6:60, 7:55, 8:50, 9:45, 10:40, 11:35, 12:30}
 
 @st.cache_resource
 def load_all_models():
-    # Load RF Model
+    """Loads both machine learning models and configuration."""
+    # Load Random Forest
     rf = joblib.load(RF_MODEL_PATH) if os.path.exists(RF_MODEL_PATH) else None
     
-    # Load DL Model with compile=False to avoid versioning errors
+    # Load Deep Learning (BiLSTM)
     dl = None
     if os.path.exists(DL_MODEL_PATH):
         try:
@@ -48,7 +49,7 @@ def load_all_models():
         except Exception as e:
             st.error(f"DL Model Error: {e}")
             
-    # Load Threshold
+    # Load Threshold for DL Model
     thresh = 0.51
     if os.path.exists(THRESHOLD_PATH):
         try:
@@ -59,18 +60,17 @@ def load_all_models():
 
 rf_model, dl_model, dl_threshold = load_all_models()
 
-# --- II. Helper & Feature Functions ---
-def speak_task(text):
-    components.html(f"<script>var msg = new SpeechSynthesisUtterance('{text}'); msg.rate = 0.85; window.speechSynthesis.speak(msg);</script>", height=0)
+# --- II. Feature Extraction & Prediction Logic ---
 
 def enhance_image(img):
+    """Preprocesses image for RF feature extraction."""
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     img = clahe.apply(img)
     img = cv2.GaussianBlur(img, (3,3), 0)
     return img
 
 def extract_rf_features(img, img_size=64):
-    """Features for the HOG/Random Forest Model"""
+    """Extracts HOG and geometric features for the RF Model."""
     img = enhance_image(img)
     img = cv2.resize(img, (img_size, img_size))
     hog_feat = hog(img, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
@@ -85,17 +85,17 @@ def extract_rf_features(img, img_size=64):
     return np.concatenate([hog_feat, [edge_density, intensity_var, spacing_var, stroke_width_var]])
 
 def run_dual_prediction(gray_img):
-    """Executes predictions for both models on a single image"""
+    """Runs input through both models and returns standardized results."""
     preds = {"rf": {"label": "N/A", "conf": 0}, "dl": {"label": "N/A", "conf": 0}}
     
-    # RF Prediction (54% Threshold)
+    # 1. RF Model Prediction (using 54% threshold)
     if rf_model:
         rf_feats = extract_rf_features(gray_img).reshape(1, -1)
         prob_rf = rf_model.predict_proba(rf_feats)[0][1] * 100
         preds["rf"]["label"] = "Dyslexic" if prob_rf > 54.0 else "Normal"
         preds["rf"]["conf"] = prob_rf
         
-    # DL Prediction
+    # 2. DL Model Prediction (MobileNet/BiLSTM)
     if dl_model:
         rgb_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
         dl_input = cv2.resize(rgb_img, IMG_SIZE_DL) / 255.0
@@ -106,7 +106,12 @@ def run_dual_prediction(gray_img):
         
     return preds
 
-# --- III. Session State ---
+# --- III. Interface and Session Handling ---
+
+def speak_task(text):
+    """Text-to-speech helper for auditory instructions."""
+    components.html(f"<script>var msg = new SpeechSynthesisUtterance('{text}'); msg.rate = 0.85; window.speechSynthesis.speak(msg);</script>", height=0)
+
 if 'stage' not in st.session_state:
     st.session_state.update({
         'stage': 1, 
@@ -114,7 +119,6 @@ if 'stage' not in st.session_state:
         'start_time': None, 'spoken': False
     })
 
-# --- IV. Main UI ---
 st.title("🧠 Coordination & Dual-Model Dyslexia Analyzer")
 st.info(f"**Goal:** {GENERALIZED_GOAL}")
 
@@ -147,7 +151,7 @@ with tab1:
                 elapsed = time.time() - st.session_state.start_time
                 gray = cv2.cvtColor(canvas_result.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
                 
-                # Get both predictions
+                # Get predictions from both models
                 results = run_dual_prediction(gray)
                 
                 st.session_state.data["times"].append(elapsed)
@@ -163,7 +167,6 @@ with tab1:
                 st.session_state.spoken = False
                 st.rerun()
 
-    # Dashboard Display
     if len(st.session_state.data["level_results"]) > 0:
         st.divider()
         st.subheader("📊 Individual Level Model Outputs")
@@ -174,16 +177,15 @@ with tab1:
                 st.write(f"RF Model: **{res['rf_label']}** ({res['rf_conf']:.1f}%)")
                 st.write(f"DL Model: **{res['dl_label']}** ({res['dl_conf']:.1f}%)")
 
-    # Final Overall Report
     if st.session_state.stage > 3:
         st.divider()
         st.header("🏁 Overall Analysis Report")
         
-        # Detection logic: Positive if either model detects markers in majority of levels
-        rf_dys_count = sum(1 for r in st.session_state.data["level_results"] if r["rf_label"] == "Dyslexic")
-        dl_dys_count = sum(1 for r in st.session_state.data["level_results"] if r["dl_label"] == "Dyslexic")
+        # Aggregate logic: Positive if either model shows markers across the majority of tests
+        rf_dys = sum(1 for r in st.session_state.data["level_results"] if r["rf_label"] == "Dyslexic")
+        dl_dys = sum(1 for r in st.session_state.data["level_results"] if r["dl_label"] == "Dyslexic")
         
-        if rf_dys_count < 2 and dl_dys_count < 2:
+        if rf_dys < 2 and dl_dys < 2:
             st.balloons()
             st.success("### Overall Detection: Normal / Non-Dyslexic")
         else:
@@ -194,7 +196,7 @@ with tab1:
             
             st.error(f"### Overall Detection: Dyslexic Profile Confirmed")
             st.markdown(f"## Final Severity: :{color}[{severity}]")
-            st.write(f"**Age:** {u_age} | **Avg Time:** {avg_time:.1f}s | **Delay:** {diff:.1f}s")
+            st.write(f"**Metrics:** Age {u_age} | Avg Time {avg_time:.1f}s | Delay {diff:.1f}s")
 
 # --- TAB 2: UPLOAD MODE ---
 with tab2:
@@ -202,16 +204,18 @@ with tab2:
     if up:
         img_bytes = np.asarray(bytearray(up.read()), dtype=np.uint8)
         gray_up = cv2.imdecode(img_bytes, cv2.IMREAD_GRAYSCALE)
-        st.image(gray_up, width=300, caption="Uploaded Image")
+        st.image(gray_up, width=300, caption="Uploaded Sample")
         
-        if st.button("Analyze Uploaded Image"):
+        if st.button("Run Dual-Model Analysis"):
             results = run_dual_prediction(gray_up)
             c1, c2 = st.columns(2)
             with c1:
-                st.write("### Random Forest (HOG)")
-                st.write(f"Result: **{results['rf']['label']}**")
+                st.write("### RF (Geometric Analysis)")
+                color = "red" if results['rf']['label'] == "Dyslexic" else "green"
+                st.markdown(f"**Result: :{color}[{results['rf']['label']}]**")
                 st.write(f"Confidence: {results['rf']['conf']:.2f}%")
             with c2:
-                st.write("### Deep Learning (BiLSTM)")
-                st.write(f"Result: **{results['dl']['label']}**")
+                st.write("### DL (Neural Analysis)")
+                color = "red" if results['dl']['label'] == "Dyslexic" else "green"
+                st.markdown(f"**Result: :{color}[{results['dl']['label']}]**")
                 st.write(f"Confidence: {results['dl']['conf']:.2f}%")
