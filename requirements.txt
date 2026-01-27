@@ -8,3 +8,4 @@ scikit-learn==1.6.1
 opencv-python-headless
 streamlit-drawable_canvas
 scikit-image
+tensorflow-cpu
