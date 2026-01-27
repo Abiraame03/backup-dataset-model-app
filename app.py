@@ -92,7 +92,7 @@ def run_dual_prediction(gray_img):
     if rf_model:
         rf_feats = extract_rf_features(gray_img).reshape(1, -1)
         prob_rf = rf_model.predict_proba(rf_feats)[0][1] * 100
-        preds["rf"]["label"] = "Dyslexic" if prob_rf > 54.0 else "Normal"
+        preds["rf"]["label"] = "Dyslexic" if prob_rf > 51.0 else "Normal"
         preds["rf"]["conf"] = prob_rf
         
     # 2. DL Model Prediction (MobileNet/BiLSTM)
