@@ -17,7 +17,7 @@ st.markdown("---")
 
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
-GLOBAL_THRESHOLD = 0.51  
+GLOBAL_THRESHOLD = 0.5  
 IMG_SIZE_DL = (160, 160)
 
 PUZZLES = {
@@ -51,9 +51,9 @@ def get_severity(prob):
     """Strict mapping: Below 51% is strictly Normal."""
     if prob < GLOBAL_THRESHOLD:
         return "Normal", "green", "✅"
-    elif GLOBAL_THRESHOLD <= prob < 0.55:
+    elif GLOBAL_THRESHOLD <= prob < 0.65:
         return "Mild Dyslexia", "blue", "⚠️"
-    elif 0.55 <= prob < 0.85:
+    elif 0.65 <= prob < 0.85:
         return "Moderate Dyslexia", "orange", "🟠"
     else:
         return "Severe Dyslexia", "red", "🔴"
