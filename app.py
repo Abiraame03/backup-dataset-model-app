@@ -23,7 +23,7 @@ PUZZLES = {
     "Advanced (8-12)": {
         1: "Draw the letters p, q, b, and d in a single row.",
         2: "Write the word MOUNTAIN in your best handwriting.",
-        3: "Write: The quick brown fox jumps over the lazy dog."
+        3: "Write: The quick brown fox."
     }
 }
 
