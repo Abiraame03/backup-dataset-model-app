@@ -5,6 +5,7 @@ import joblib
 import tensorflow as tf
 from PIL import Image
 import os
+import time
 from datetime import datetime
 from skimage.feature import hog
 from streamlit_drawable_canvas import st_canvas
@@ -18,7 +19,7 @@ st.markdown("---")
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
 
-# Separate Thresholds
+# Thresholds
 CANVAS_THRESHOLD = 0.55
 UPLOAD_THRESHOLD = 0.50
 
@@ -52,7 +53,7 @@ def speak_text(text):
 # --- III. Logic & Accuracy Engine ---
 
 def get_severity(prob, threshold):
-    """Calculates severity levels dynamically based on the provided threshold."""
+    """Calculates severity levels dynamically based on threshold."""
     if prob < threshold:
         return "Normal", "green", "✅"
     elif threshold <= prob < (threshold + 0.15):
@@ -72,14 +73,7 @@ def preprocess_image(gray_img):
         return cv2.resize(roi, IMG_SIZE_DL)
     return cv2.resize(gray_img, IMG_SIZE_DL)
 
-
-
 def ensemble_predict(gray_img, stage):
-    """
-    Accuracy Routing:
-    - Stage 1 (Chars): 90% RF / 10% DL
-    - Stage 3 (Sentences): 20% RF / 80% DL
-    """
     proc = preprocess_image(gray_img)
     
     # RF Logic
@@ -124,13 +118,18 @@ if 'stage' not in st.session_state:
         'results': [], 
         'rf_raw': [], 
         'dl_raw': [], 
-        'spoken': False
+        'spoken': False,
+        'start_time': None
     })
 
 t1, t2 = st.tabs(["✍️ Assessment Canvas", "📤 External File"])
 
 with t1:
     if st.session_state.stage <= 3:
+        # Start timer on first interaction
+        if st.session_state.start_time is None:
+            st.session_state.start_time = time.time()
+
         age = st.sidebar.slider("Age", 5, 12, 7)
         task_list = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"]
         current_task = task_list[st.session_state.stage]
@@ -145,7 +144,7 @@ with t1:
             st.info(f"📝 **Task:** {current_task}")
         with col_audio:
             st.write("") 
-            if st.button("🔊 Replay", key="replay_btn"):
+            if st.button("🔊 Replay"):
                 speak_text(current_task)
 
         canvas = st_canvas(stroke_width=5, stroke_color="#000", background_color="#FFF", height=300, width=750, key=f"c{st.session_state.stage}")
@@ -164,10 +163,15 @@ with t1:
                 else:
                     st.warning("Canvas is empty. Please draw the task.")
     else:
-        # Final Summary
+        # --- FINAL SUMMARY SECTION ---
         avg_score = np.mean(st.session_state.results)
         label, color, icon = get_severity(avg_score, CANVAS_THRESHOLD)
-        test_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Calculate Time Taken
+        end_time = time.time()
+        total_seconds = end_time - st.session_state.start_time
+        time_display = time.strftime("%M:%S", time.gmtime(total_seconds))
+        test_date = datetime.now().strftime("%Y-%m-%d %H:%M")
         
         if label == "Normal":
             st.balloons()
@@ -175,9 +179,7 @@ with t1:
         else:
             st.error(f"### Final Result: {label} {icon}")
 
-        st.write(f"🕒 **Completion Time:** {test_time}")
-
-        
+        st.write(f"🕒 **Test Date:** {test_date}")
 
         with st.expander("🔍 Detailed Model Performance Breakdown"):
             summary_data = []
@@ -186,16 +188,17 @@ with t1:
                     "Level": i+1,
                     "RF Prediction": f"{st.session_state.rf_raw[i]*100:.1f}%",
                     "DL Prediction": f"{st.session_state.dl_raw[i]*100:.1f}%",
-                    "Weighted Ensemble": f"{st.session_state.results[i]*100:.1f}%"
+                    "Weighted Score": f"{st.session_state.results[i]*100:.1f}%"
                 })
             st.table(summary_data)
 
         st.divider()
+        # Metric showing Time Taken instead of Threshold
         st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
-                  delta=f"Threshold: {CANVAS_THRESHOLD}", delta_color="inverse")
+                  delta=f"Time: {time_display}", delta_color="normal")
         
         if st.button("Start New Assessment"):
-            st.session_state.update({'stage': 1, 'results': [], 'rf_raw': [], 'dl_raw': [], 'spoken': False})
+            st.session_state.update({'stage': 1, 'results': [], 'rf_raw': [], 'dl_raw': [], 'spoken': False, 'start_time': None})
             st.rerun()
 
 with t2:
@@ -205,11 +208,9 @@ with t2:
         img_arr = np.array(Image.open(up).convert('L'))
         st.image(up, width=400)
         if st.button("Run Sentence Analysis"):
-            # Uses Stage 3 logic and UPLOAD_THRESHOLD (0.50)
             final_p, r_p, d_p = ensemble_predict(img_arr, stage=3)
             label, color, icon = get_severity(final_p, UPLOAD_THRESHOLD)
             
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
-            st.write(f"Combined Certainty: **{final_p*100:.1f}%** (Threshold: {UPLOAD_THRESHOLD})")
-            st.info(f"RF: {r_p*100:.1f}% | DL: {d_p*100:.1f}%")
+            st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
