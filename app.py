@@ -16,7 +16,7 @@ st.set_page_config(page_title="Dual-Model Dyslexia Analyzer", layout="wide")
 
 # Filenames from your GitHub root directory
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
-DL_MODEL_PATH = "mobilenetv2_bilstm_final (2).h5"  # Corrected with the space
+DL_MODEL_PATH = "mobilenetv2_bilstm_best_thr_044 (2).h5"  # Corrected with the space
 THRESHOLD_PATH = "best_threshold.json"
 IMG_SIZE_DL = (160, 160)
 
