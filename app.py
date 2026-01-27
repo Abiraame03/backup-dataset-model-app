@@ -20,7 +20,7 @@ RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
 
 # Thresholds
-CANVAS_THRESHOLD = 0.55
+CANVAS_THRESHOLD = 0.56
 UPLOAD_THRESHOLD = 0.50
 
 IMG_SIZE_DL = (160, 160)
