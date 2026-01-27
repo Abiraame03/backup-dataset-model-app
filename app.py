@@ -19,7 +19,7 @@ st.markdown("---")
 
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
-GLOBAL_THRESHOLD = 0.51  
+GLOBAL_THRESHOLD = 0.51  # Set to 51% per request
 IMG_SIZE_DL = (160, 160)
 
 PUZZLES = {
@@ -61,9 +61,10 @@ def load_models():
 
 rf_model, dl_model = load_models()
 
-# --- IV. Logic ---
+# --- IV. Logic & Severity Engine ---
 
 def get_severity(prob):
+    """Calculates severity based on the 51% threshold references."""
     if prob < GLOBAL_THRESHOLD:
         return "Normal", "green", "✅"
     elif GLOBAL_THRESHOLD <= prob < 0.65:
@@ -87,6 +88,9 @@ def predict_all(gray_img, use_dl=True):
         rgb = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
         inp = np.expand_dims(cv2.resize(rgb, IMG_SIZE_DL)/255.0, axis=0)
         dl_p = float(dl_model.predict(inp, verbose=0)[0][0])
+    
+    # Returning raw probability (0.0 to 1.0)
+    # Weighted ensemble for better accuracy (DL is 60% of score for Level 2 and 3)
     return (rf_p * 0.4 + dl_p * 0.6) if use_dl else rf_p
 
 # --- V. UI Tabs ---
@@ -101,7 +105,6 @@ with t1:
         age = st.sidebar.slider("Age", 5, 12, 7)
         task = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"][st.session_state.stage]
         
-        # Audio Instruction Logic
         if not st.session_state.spoken:
             speak_text(f"Task {st.session_state.stage}. {task}")
             st.session_state.spoken = True
@@ -114,19 +117,31 @@ with t1:
         if st.button(f"Submit Task {st.session_state.stage}"):
             if canvas.image_data is not None:
                 gray = cv2.cvtColor(canvas.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
+                # Level 2 and 3 use DL prediction alongside RF
                 score = predict_all(gray, use_dl=(st.session_state.stage >= 2))
                 st.session_state.results.append(score)
                 st.session_state.stage += 1
-                st.session_state.spoken = False # Reset for next task
+                st.session_state.spoken = False 
                 st.rerun()
     else:
+        # OVERALL ASSESSMENT SECTION
+        st.header("🏁 Overall Assessment Report")
         avg_score = np.mean(st.session_state.results)
         label, color, icon = get_severity(avg_score)
-        st.balloons()
-        st.header(f"{icon} Final Assessment")
-        st.markdown(f"### Overall Result: :{color}[{label}]")
-        st.write(f"Average Probability: **{avg_score*100:.1f}%**")
-        if st.button("Reset Assessment"):
+        
+        if label == "Normal":
+            st.balloons()
+            st.success(f"### Overall Result: {label} {icon}")
+        else:
+            st.error(f"### Overall Result: {label} {icon}")
+        
+        
+
+        st.divider()
+        st.write(f"**Average Analysis Probability:** {avg_score*100:.1f}%")
+        st.write(f"Based on your performance across character, word, and sentence levels, the system has detected markers consistent with a **{label}** profile.")
+        
+        if st.button("Start New Assessment"):
             st.session_state.update({'stage': 1, 'results': [], 'spoken': False})
             st.rerun()
 
@@ -135,10 +150,14 @@ with t2:
     up = st.file_uploader("Upload a clear image of a sentence", type=['png', 'jpg', 'jpeg'])
     if up:
         img = Image.open(up).convert('L')
-        st.image(img, width=400)
-        if st.button("Analyze Upload"):
+        st.image(img, width=400, caption="Uploaded Handwriting")
+        if st.button("Run Comprehensive Analysis"):
+            # Upload uses both models for highest accuracy
             score = predict_all(np.array(img), use_dl=True)
             label, color, icon = get_severity(score)
+            
+            st.divider()
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(score)
-            st.write(f"System Certainty: {score*100:.1f}%")
+            st.write(f"Detection Certainty: **{score*100:.1f}%**")
+            st.caption(f"Note: Detection based on a reference threshold of {GLOBAL_THRESHOLD*100}%.")
