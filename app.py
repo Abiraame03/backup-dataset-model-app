@@ -20,7 +20,7 @@ THRESHOLD_PATH = "best_threshold.json"
 IMG_SIZE_DL = (160, 160)
 
 # ACCURACY FIX: Higher threshold to prevent "Mild" false positives
-STRICT_THRESHOLD = 0.70 
+STRICT_THRESHOLD = 0.51 
 
 PUZZLES = {
     "Beginner (5-7)": {
@@ -92,7 +92,7 @@ if 'stage' not in st.session_state:
         'start_time': None, 'spoken': False
     })
 
-st.title("🧠 Coordination & Audio-Task Analyzer")
+st.title("🧠 Coordination & Audio-Task Dyslexia Detector")
 
 with st.sidebar:
     u_age = st.slider("User Age", 5, 12, 7)
@@ -137,7 +137,7 @@ elif st.session_state.stage > 3:
     avg_dl = np.mean(dl_scores) if dl_scores else 0
     
     # Logic: Confirmation requires both models to be above a strict baseline
-    is_confirmed = (avg_rf > 0.58) and (avg_dl > STRICT_THRESHOLD)
+    is_confirmed = (avg_rf > 0.51) and (avg_dl > STRICT_THRESHOLD)
 
     
 
@@ -146,7 +146,7 @@ elif st.session_state.stage > 3:
         st.write("Both geometric analysis and neural sequence modeling confirmed high-risk markers.")
     else:
         st.balloons()
-        st.success("### Detection: Normal / Low Risk")
+        st.success("### Detection: Normal ")
         st.write("The indicators found do not meet the strict statistical threshold for a dyslexia diagnosis.")
 
     st.divider()
