@@ -17,7 +17,11 @@ st.markdown("---")
 
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
-GLOBAL_THRESHOLD = 0.5
+
+# Separate Thresholds
+CANVAS_THRESHOLD = 0.55
+UPLOAD_THRESHOLD = 0.50
+
 IMG_SIZE_DL = (160, 160)
 
 PUZZLES = {
@@ -47,12 +51,13 @@ def speak_text(text):
 
 # --- III. Logic & Accuracy Engine ---
 
-def get_severity(prob):
-    if prob < GLOBAL_THRESHOLD:
+def get_severity(prob, threshold):
+    """Calculates severity levels dynamically based on the provided threshold."""
+    if prob < threshold:
         return "Normal", "green", "✅"
-    elif GLOBAL_THRESHOLD <= prob < 0.65:
+    elif threshold <= prob < (threshold + 0.15):
         return "Mild Dyslexia", "blue", "⚠️"
-    elif 0.65 <= prob < 0.85:
+    elif (threshold + 0.15) <= prob < (threshold + 0.35):
         return "Moderate Dyslexia", "orange", "🟠"
     else:
         return "Severe Dyslexia", "red", "🔴"
@@ -72,8 +77,8 @@ def preprocess_image(gray_img):
 def ensemble_predict(gray_img, stage):
     """
     Accuracy Routing:
-    - Stage 1 (Chars): 90% RF / 10% DL (DL is not trained for chars)
-    - Stage 3 (Sentences): 20% RF / 80% DL (DL is the specialist)
+    - Stage 1 (Chars): 90% RF / 10% DL
+    - Stage 3 (Sentences): 20% RF / 80% DL
     """
     proc = preprocess_image(gray_img)
     
@@ -90,7 +95,6 @@ def ensemble_predict(gray_img, stage):
         inp = np.expand_dims(rgb / 255.0, axis=0)
         dl_p = float(dl_m.predict(inp, verbose=0)[0][0])
 
-    # Dynamic Weighting
     if stage == 1:
         score = (rf_p * 0.9 + dl_p * 0.1)
     elif stage == 2:
@@ -140,8 +144,8 @@ with t1:
             st.subheader(f"Level {st.session_state.stage}")
             st.info(f"📝 **Task:** {current_task}")
         with col_audio:
-            st.write("") # Spacer
-            if st.button("🔊 Replay"):
+            st.write("") 
+            if st.button("🔊 Replay", key="replay_btn"):
                 speak_text(current_task)
 
         canvas = st_canvas(stroke_width=5, stroke_color="#000", background_color="#FFF", height=300, width=750, key=f"c{st.session_state.stage}")
@@ -149,7 +153,6 @@ with t1:
         if st.button(f"Submit Task {st.session_state.stage}", use_container_width=True):
             if canvas.image_data is not None:
                 gray = cv2.cvtColor(canvas.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
-                # Ensure user actually wrote something
                 if np.sum(gray < 255) > 400:
                     final_p, r_p, d_p = ensemble_predict(gray, st.session_state.stage)
                     st.session_state.results.append(final_p)
@@ -160,11 +163,10 @@ with t1:
                     st.rerun()
                 else:
                     st.warning("Canvas is empty. Please draw the task.")
-
     else:
-        # --- OVERALL SUMMARY SECTION ---
+        # Final Summary
         avg_score = np.mean(st.session_state.results)
-        label, color, icon = get_severity(avg_score)
+        label, color, icon = get_severity(avg_score, CANVAS_THRESHOLD)
         test_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if label == "Normal":
@@ -174,28 +176,24 @@ with t1:
             st.error(f"### Final Result: {label} {icon}")
 
         st.write(f"🕒 **Completion Time:** {test_time}")
-        
+
         
 
-        # Model Prediction Breakdown
         with st.expander("🔍 Detailed Model Performance Breakdown"):
-            st.write("This table shows how each model performed at different complexity levels.")
             summary_data = []
             for i in range(3):
                 summary_data.append({
                     "Level": i+1,
-                    "RF Prediction (General)": f"{st.session_state.rf_raw[i]*100:.1f}%",
-                    "DL Prediction (Sentence)": f"{st.session_state.dl_raw[i]*100:.1f}%",
+                    "RF Prediction": f"{st.session_state.rf_raw[i]*100:.1f}%",
+                    "DL Prediction": f"{st.session_state.dl_raw[i]*100:.1f}%",
                     "Weighted Ensemble": f"{st.session_state.results[i]*100:.1f}%"
                 })
             st.table(summary_data)
 
         st.divider()
-        st.metric("Aggregate Prediction Index", f"{avg_score*100:.1f}%", 
-                  delta=f"{avg_score - GLOBAL_THRESHOLD:.2f}", delta_color="inverse")
+        st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
+                  delta=f"Threshold: {CANVAS_THRESHOLD}", delta_color="inverse")
         
-        st.write(f"**Final Summary:** Based on the weighted analysis of both the Random Forest (Character-trained) and Deep Learning (Sentence-trained) models, the user's handwriting profile indicates a **{label}** pattern.")
-
         if st.button("Start New Assessment"):
             st.session_state.update({'stage': 1, 'results': [], 'rf_raw': [], 'dl_raw': [], 'spoken': False})
             st.rerun()
@@ -207,9 +205,11 @@ with t2:
         img_arr = np.array(Image.open(up).convert('L'))
         st.image(up, width=400)
         if st.button("Run Sentence Analysis"):
-            # Assume Stage 3 logic for general sentence uploads
+            # Uses Stage 3 logic and UPLOAD_THRESHOLD (0.50)
             final_p, r_p, d_p = ensemble_predict(img_arr, stage=3)
-            label, color, icon = get_severity(final_p)
+            label, color, icon = get_severity(final_p, UPLOAD_THRESHOLD)
+            
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
-            st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
+            st.write(f"Combined Certainty: **{final_p*100:.1f}%** (Threshold: {UPLOAD_THRESHOLD})")
+            st.info(f"RF: {r_p*100:.1f}% | DL: {d_p*100:.1f}%")
