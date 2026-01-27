@@ -13,9 +13,13 @@ import streamlit.components.v1 as components
 # --- I. Configuration ---
 st.set_page_config(page_title="Dyslexia Severity Analyzer", layout="wide")
 
+# Title and Header
+st.title("🧠 Coordination & Dyslexia Severity Analyzer")
+st.markdown("---")
+
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
-GLOBAL_THRESHOLD = 0.51  # Your requested threshold
+GLOBAL_THRESHOLD = 0.51  
 IMG_SIZE_DL = (160, 160)
 
 PUZZLES = {
@@ -31,7 +35,19 @@ PUZZLES = {
     }
 }
 
-# --- II. Model Loading ---
+# --- II. Audio Input Component ---
+def speak_text(text):
+    """Function to trigger browser Text-to-Speech"""
+    components.html(f"""
+        <script>
+        window.speechSynthesis.cancel();
+        var msg = new SpeechSynthesisUtterance('{text}');
+        msg.rate = 0.9;
+        window.speechSynthesis.speak(msg);
+        </script>
+    """, height=0)
+
+# --- III. Model Loading ---
 @st.cache_resource
 def load_models():
     rf = joblib.load(RF_MODEL_PATH) if os.path.exists(RF_MODEL_PATH) else None
@@ -45,10 +61,9 @@ def load_models():
 
 rf_model, dl_model = load_models()
 
-# --- III. Logic ---
+# --- IV. Logic ---
 
 def get_severity(prob):
-    """Classifies risk based on the 51% threshold."""
     if prob < GLOBAL_THRESHOLD:
         return "Normal", "green", "✅"
     elif GLOBAL_THRESHOLD <= prob < 0.65:
@@ -59,10 +74,8 @@ def get_severity(prob):
         return "Severe Dyslexia", "red", "🔴"
 
 def extract_features(img):
-    """Extracts HOG features for the RF model."""
     img_res = cv2.resize(img, (64, 64))
     features = hog(img_res, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
-    # Adding geometric placeholders to match your 2011-length feature vector
     placeholders = [np.var(img_res), np.mean(img_res), 0, 0]
     return np.concatenate([features, placeholders]).reshape(1, -1)
 
@@ -74,14 +87,12 @@ def predict_all(gray_img, use_dl=True):
         rgb = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
         inp = np.expand_dims(cv2.resize(rgb, IMG_SIZE_DL)/255.0, axis=0)
         dl_p = float(dl_model.predict(inp, verbose=0)[0][0])
-    
-    # Combined score (Weighted)
     return (rf_p * 0.4 + dl_p * 0.6) if use_dl else rf_p
 
-# --- IV. UI Tabs ---
+# --- V. UI Tabs ---
 
 if 'stage' not in st.session_state:
-    st.session_state.update({'stage': 1, 'results': []})
+    st.session_state.update({'stage': 1, 'results': [], 'spoken': False})
 
 t1, t2 = st.tabs(["✍️ Assessment Canvas", "📤 Upload Sample"])
 
@@ -90,8 +101,13 @@ with t1:
         age = st.sidebar.slider("Age", 5, 12, 7)
         task = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"][st.session_state.stage]
         
-        st.subheader(f"Task {st.session_state.stage}")
-        st.info(f"Instruction: {task}")
+        # Audio Instruction Logic
+        if not st.session_state.spoken:
+            speak_text(f"Task {st.session_state.stage}. {task}")
+            st.session_state.spoken = True
+
+        st.subheader(f"Level {st.session_state.stage}")
+        st.info(f"🔊 **Listening to Task:** {task}")
         
         canvas = st_canvas(stroke_width=4, stroke_color="#000", background_color="#FFF", height=300, width=700, key=f"v{st.session_state.stage}")
         
@@ -101,15 +117,17 @@ with t1:
                 score = predict_all(gray, use_dl=(st.session_state.stage >= 2))
                 st.session_state.results.append(score)
                 st.session_state.stage += 1
+                st.session_state.spoken = False # Reset for next task
                 st.rerun()
     else:
         avg_score = np.mean(st.session_state.results)
         label, color, icon = get_severity(avg_score)
+        st.balloons()
         st.header(f"{icon} Final Assessment")
         st.markdown(f"### Overall Result: :{color}[{label}]")
         st.write(f"Average Probability: **{avg_score*100:.1f}%**")
-        if st.button("Reset"):
-            st.session_state.update({'stage': 1, 'results': []})
+        if st.button("Reset Assessment"):
+            st.session_state.update({'stage': 1, 'results': [], 'spoken': False})
             st.rerun()
 
 with t2:
