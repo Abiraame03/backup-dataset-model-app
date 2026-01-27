@@ -17,7 +17,7 @@ st.markdown("---")
 
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
-GLOBAL_THRESHOLD = 0.51  
+GLOBAL_THRESHOLD = 0.51  # Base detection threshold
 IMG_SIZE_DL = (160, 160)
 
 PUZZLES = {
@@ -29,25 +29,29 @@ PUZZLES = {
     "Advanced (8-12)": {
         1: "Draw the letters p, q, b, and d.",
         2: "Write the word MOUNTAIN clearly.",
-        3: "Write: The quick brown fox jumps over the lazy dog."
+        3: "Write: The quick brown fox."
     }
 }
 
-# --- II. Audio Instruction Component ---
-def speak_text(text):
+# --- II. Audio Task Component ---
+def speak_task(text):
+    """Triggers Browser Text-to-Speech for instructions."""
     components.html(f"""
         <script>
         window.speechSynthesis.cancel();
         var msg = new SpeechSynthesisUtterance('{text}');
-        msg.rate = 0.9;
+        msg.rate = 0.85;
         window.speechSynthesis.speak(msg);
         </script>
     """, height=0)
 
 # --- III. Logic & Accuracy Engine ---
 
-def get_severity(prob):
-    """Refined severity classification logic."""
+def get_severity_label(prob):
+    """
+    Classifies based on the 51% threshold. 
+    If below 0.51, it is strictly 'Normal'.
+    """
     if prob < GLOBAL_THRESHOLD:
         return "Normal", "green", "✅"
     elif GLOBAL_THRESHOLD <= prob < 0.65:
@@ -57,51 +61,56 @@ def get_severity(prob):
     else:
         return "Severe Dyslexia", "red", "🔴"
 
-def extract_features(img):
-    """Optimized feature extraction for RF (64x64 HOG)."""
-    img_res = cv2.resize(img, (64, 64))
-    features = hog(img_res, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
-    placeholders = [np.var(img_res), np.mean(img_res), 0, 0] 
-    return np.concatenate([features, placeholders]).reshape(1, -1)
-
-
-
-def predict_logic(gray_img, current_stage):
-    """
-    TASK-AWARE ROUTING:
-    - Level 1 (Chars): RF is high weight (80%) because DL wasn't trained on chars.
-    - Level 2 (Words): Hybrid weight (50/50).
-    - Level 3 (Sentences): DL is high weight (80%) as it is a sentence specialist.
-    """
-    # 1. Preprocess & Denoise
+def preprocess_image(gray_img):
+    """Removes noise and crops to the ink for better model accuracy."""
     _, thresh = cv2.threshold(gray_img, 200, 255, cv2.THRESH_BINARY_INV)
     coords = cv2.findNonZero(thresh)
     if coords is not None:
         x, y, w, h = cv2.boundingRect(coords)
-        gray_img = cv2.resize(gray_img[y:y+h, x:x+w], (160, 160))
-    else:
-        gray_img = cv2.resize(gray_img, (160, 160))
+        # Add small padding
+        pad = 10
+        cropped = gray_img[max(0, y-pad):min(gray_img.shape[0], y+h+pad), 
+                          max(0, x-pad):min(gray_img.shape[1], x+w+pad)]
+        return cv2.resize(cropped, IMG_SIZE_DL)
+    return cv2.resize(gray_img, IMG_SIZE_DL)
 
-    rf_p = rf_m.predict_proba(extract_features(gray_img))[0][1] if rf_m else 0.0
+def extract_rf_features(img):
+    """Extracts HOG features specifically for the RF model."""
+    img_64 = cv2.resize(img, (64, 64))
+    features = hog(img_64, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
+    placeholders = [np.var(img_64), np.mean(img_64), 0, 0] 
+    return np.concatenate([features, placeholders]).reshape(1, -1)
+
+
+
+def ensemble_prediction(gray_img, stage):
+    """
+    DYNAMIC ROUTING:
+    - Stage 1: RF (85%) | DL (15%) -> RF knows characters better.
+    - Stage 2: RF (50%) | DL (50%) -> Mixed word complexity.
+    - Stage 3: RF (20%) | DL (80%) -> DL is the sentence specialist.
+    """
+    proc_img = preprocess_image(gray_img)
     
+    # Get RF Probability
+    rf_p = rf_m.predict_proba(extract_rf_features(proc_img))[0][1] if rf_m else 0.0
+    
+    # Get DL Probability
     dl_p = 0.0
     if dl_m:
-        rgb = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
+        rgb = cv2.cvtColor(proc_img, cv2.COLOR_GRAY2RGB)
         inp = np.expand_dims(rgb / 255.0, axis=0)
         dl_p = float(dl_m.predict(inp, verbose=0)[0][0])
-
-    # 2. Dynamic Weighting based on Task Type
-    if current_stage == 1:
-        # Heavily favor RF for characters
-        final_score = (rf_p * 0.8) + (dl_p * 0.2)
-    elif current_stage == 2:
-        # Balanced for words
-        final_score = (rf_p * 0.5) + (dl_p * 0.5)
+    
+    # Weighted calculation based on Stage
+    if stage == 1:
+        score = (rf_p * 0.85) + (dl_p * 0.15)
+    elif stage == 2:
+        score = (rf_p * 0.50) + (dl_p * 0.50)
     else:
-        # Heavily favor DL for sentences
-        final_score = (rf_p * 0.2) + (dl_p * 0.8)
-
-    return final_score, rf_p, dl_p
+        score = (rf_p * 0.20) + (dl_p * 0.80)
+        
+    return score
 
 # --- IV. Model Loading ---
 @st.cache_resource
@@ -116,84 +125,76 @@ def load_models():
 
 rf_m, dl_m = load_models()
 
-# --- V. UI Workflow ---
+# --- V. UI Implementation ---
 
 if 'stage' not in st.session_state:
-    st.session_state.update({'stage': 1, 'results': [], 'spoken': False, 'model_data': []})
+    st.session_state.update({'stage': 1, 'scores': [], 'spoken': False})
 
-t1, t2 = st.tabs(["✍️ Assessment Canvas", "📤 External File Analysis"])
+tab1, tab2 = st.tabs(["✍️ Handwriting Assessment", "📤 Image Upload"])
 
-with t1:
+with tab1:
     if st.session_state.stage <= 3:
-        age = st.sidebar.slider("Participant Age", 5, 12, 8)
-        task = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"][st.session_state.stage]
+        age = st.sidebar.select_slider("Select Age", options=list(range(5, 13)), value=7)
+        age_group = "Beginner (5-7)" if age <= 7 else "Advanced (8-12)"
+        task_text = PUZZLES[age_group][st.session_state.stage]
         
         if not st.session_state.spoken:
-            speak_text(f"Level {st.session_state.stage}. {task}")
+            speak_task(task_text)
             st.session_state.spoken = True
 
-        st.subheader(f"Level {st.session_state.stage}")
-        st.info(f"🔊 Task: {task}")
+        st.subheader(f"Step {st.session_state.stage}: {age_group}")
+        st.info(f"🔊 **Instruction:** {task_text}")
         
-        canvas = st_canvas(stroke_width=4, stroke_color="#000", background_color="#FFF", height=300, width=700, key=f"c{st.session_state.stage}")
+        canvas = st_canvas(stroke_width=4, stroke_color="#000", background_color="#FFF", 
+                          height=300, width=700, key=f"canv_{st.session_state.stage}")
         
-        if st.button(f"Submit Level {st.session_state.stage}"):
+        if st.button(f"Next Step", use_container_width=True):
             if canvas.image_data is not None:
                 gray = cv2.cvtColor(canvas.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
-                score, r_p, d_p = predict_logic(gray, st.session_state.stage)
-                
-                st.session_state.results.append(score)
-                st.session_state.model_data.append({"RF": r_p, "DL": d_p})
-                st.session_state.stage += 1
-                st.session_state.spoken = False 
-                st.rerun()
+                # Check if user actually wrote something
+                if np.mean(gray) < 250: 
+                    final_p = ensemble_prediction(gray, st.session_state.stage)
+                    st.session_state.scores.append(final_p)
+                    st.session_state.stage += 1
+                    st.session_state.spoken = False
+                    st.rerun()
+                else:
+                    st.warning("Please write something on the canvas first!")
+
     else:
-        # OVERALL ASSESSMENT REPORT
-        avg_score = np.mean(st.session_state.results)
-        label, color, icon = get_severity(avg_score)
+        # Final Severity Assessment
+        avg_score = np.mean(st.session_state.scores)
+        label, color, icon = get_severity_label(avg_score)
         
-        st.header(f"{icon} Final Assessment Report")
+        st.header("📊 Final Handwriting Profile")
         
         if label == "Normal":
             st.balloons()
-            st.success(f"### Final Result: {label}")
+            st.success(f"### Result: {label} {icon}")
+            st.write("Your handwriting patterns are within the typical range for your age group.")
         else:
-            st.error(f"### Final Result: {label}")
+            st.error(f"### Result: {label} {icon}")
+            st.write(f"The system has identified markers consistent with **{label}** based on spatial consistency and stroke patterns.")
 
         
-
-        # Detailed Breakdown Table
-        with st.expander("🔍 View Technical Model Predictions"):
-            st.write("Below is the raw data from each model across the three tasks:")
-            breakdown = []
-            for i, data in enumerate(st.session_state.model_data):
-                breakdown.append({
-                    "Level": i+1,
-                    "RF Prediction (General)": f"{data['RF']*100:.1f}%",
-                    "DL Prediction (Sentence)": f"{data['DL']*100:.1f}%",
-                    "Weighted Score": f"{st.session_state.results[i]*100:.1f}%"
-                })
-            st.table(breakdown)
 
         st.divider()
-        st.metric("Aggregate Risk Probability", f"{avg_score*100:.1f}%", delta=f"{avg_score - GLOBAL_THRESHOLD:.2f}", delta_color="inverse")
+        st.metric("Risk Index", f"{avg_score*100:.1f}%", delta=f"{avg_score - GLOBAL_THRESHOLD:.2f}", delta_color="inverse")
         
-        if st.button("Start New Test"):
-            st.session_state.update({'stage': 1, 'results': [], 'spoken': False, 'model_data': []})
+        if st.button("Restart Test"):
+            st.session_state.update({'stage': 1, 'scores': [], 'spoken': False})
             st.rerun()
 
-with t2:
-    st.header("Upload Handwriting Sample")
-    up = st.file_uploader("Upload an image of written sentences", type=['png', 'jpg', 'jpeg'])
+with tab2:
+    st.header("Upload Written Sample")
+    up = st.file_uploader("Upload a clear photo of a sentence", type=['png', 'jpg', 'jpeg'])
     if up:
-        img = np.array(Image.open(up).convert('L'))
+        img_file = Image.open(up).convert('L')
         st.image(up, width=400)
-        if st.button("Analyze Sentences"):
-            # For general uploads, we assume sentence-level analysis
-            score, r_p, d_p = predict_logic(img, current_stage=3)
-            label, color, icon = get_severity(score)
-            
+        if st.button("Analyze Uploaded Sentence"):
+            # Since this is a sentence, we route using Stage 3 logic (DL high weight)
+            score = ensemble_prediction(np.array(img_file), stage=3)
+            label, color, icon = get_severity_label(score)
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(score)
-            st.write(f"RF Model Certainty: {r_p*100:.1f}%")
-            st.write(f"DL Model Certainty: {d_p*100:.1f}%")
+            st.write(f"System Certainty: {score*100:.1f}%")
