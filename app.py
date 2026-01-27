@@ -73,18 +73,18 @@ def load_models():
     rf_model = joblib.load(rf_path) if os.path.exists(rf_path) else None
     
     # Model 2: MobileNetV2-BiLSTM
-    h5_path = "models/mobilenetv2_bilstm_final.h5"
+    h5_path = "mobilenetv2_bilstm_final.h5"
     dl_model = tf.keras.models.load_model(h5_path) if os.path.exists(h5_path) else None
     
     # Load DL Metadata
     class_map = None
-    if os.path.exists("models/class_indices_best.pkl"):
-        with open("models/class_indices_best.pkl", "rb") as f:
+    if os.path.exists("class_indices_best.pkl"):
+        with open("class_indices_best.pkl", "rb") as f:
             class_map = pickle.load(f)
             
     best_thresh = 0.5
-    if os.path.exists("models/best_threshold.json"):
-        with open("models/best_threshold.json", "r") as f:
+    if os.path.exists("best_threshold.json"):
+        with open("best_threshold.json", "r") as f:
             best_thresh = json.load(f).get('threshold', 0.5)
 
     return rf_model, dl_model, class_map, best_thresh
