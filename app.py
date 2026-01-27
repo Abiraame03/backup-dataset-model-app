@@ -16,10 +16,9 @@ st.set_page_config(page_title="Dual-Model Dyslexia Analyzer", layout="wide")
 
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5" 
-IMG_SIZE_DL = (160, 160)
-
-# User-requested threshold
+# Forced threshold as requested
 GLOBAL_THRESHOLD = 0.51 
+IMG_SIZE_DL = (160, 160)
 
 PUZZLES = {
     "Beginner (5-7)": {
@@ -46,17 +45,24 @@ def load_all_models():
 
 rf_model, dl_model = load_all_models()
 
-# --- II. Logic Functions ---
+# --- II. Severity Logic Helper ---
 
-def speak_task(text):
-    components.html(f"<script>var msg = new SpeechSynthesisUtterance('{text}'); window.speechSynthesis.speak(msg);</script>", height=0)
+def get_severity_label(probability):
+    """
+    Categorizes the probability based on the 51% baseline.
+    """
+    prob_val = probability / 100.0 if probability > 1 else probability
+    
+    if prob_val < GLOBAL_THRESHOLD:
+        return "Normal", "green"
+    elif GLOBAL_THRESHOLD <= prob_val < 0.65:
+        return "Mild Dyslexia", "blue"
+    elif 0.65 <= prob_val < 0.85:
+        return "Moderate Dyslexia", "orange"
+    else:
+        return "Severe Dyslexia", "red"
 
-def get_severity(prob):
-    """Maps the probability to a severity label."""
-    if prob < 0.51: return "Normal", "green"
-    elif 0.51 <= prob < 0.65: return "Mild Dyslexia", "blue"
-    elif 0.65 <= prob < 0.85: return "Moderate Dyslexia", "orange"
-    else: return "Severe Dyslexia", "red"
+# --- III. Prediction Logic ---
 
 def extract_rf_features(img, img_size=64):
     img_res = cv2.resize(img, (img_size, img_size))
@@ -65,84 +71,94 @@ def extract_rf_features(img, img_size=64):
     edge_density = np.sum(edges) / (np.sum(img_res > 0) + 1)
     return np.concatenate([hog_feat, [edge_density, np.var(img_res), 0, 0]])
 
-def run_prediction(gray_img, run_dl=True):
-    rf_prob, dl_prob = 0.0, 0.0
+def run_dual_prediction(gray_img, run_dl=False):
+    # We use raw probabilities to determine severity later
+    results = {"rf_prob": 0.0, "dl_prob": 0.0}
     
     if rf_model:
-        feats = extract_rf_features(gray_img).reshape(1, -1)
-        rf_prob = rf_model.predict_proba(feats)[0][1]
+        rf_feats = extract_rf_features(gray_img).reshape(1, -1)
+        results["rf_prob"] = rf_model.predict_proba(rf_feats)[0][1]
         
     if dl_model and run_dl:
         rgb_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
         dl_input = np.expand_dims(cv2.resize(rgb_img, IMG_SIZE_DL)/255.0, axis=0)
-        dl_prob = float(dl_model.predict(dl_input, verbose=0)[0][0])
-    
-    # Combined score (weighted average)
-    final_score = (rf_prob * 0.4) + (dl_prob * 0.6) if run_dl else rf_prob
-    return final_score
+        results["dl_prob"] = float(dl_model.predict(dl_input, verbose=0)[0][0])
+        
+    return results
 
-# --- III. Interface ---
+# --- IV. Interface ---
 
 if 'stage' not in st.session_state:
-    st.session_state.update({'stage': 1, 'scores': [], 'spoken': False})
+    st.session_state.update({
+        'stage': 1, 'data': {"level_results": []}, 
+        'spoken': False
+    })
 
-tab1, tab2 = st.tabs(["✍️ Audio Assessment", "📤 File Upload"])
+st.title("🧠 Coordination & Severity-Based Dyslexia Analyzer")
+
+tab1, tab2 = st.tabs(["✍️ Writing Canvas", "📤 Upload Image"])
 
 with tab1:
     if st.session_state.stage <= 3:
-        u_age = st.sidebar.slider("Age", 5, 12, 7)
+        u_age = st.sidebar.slider("Select Age", 5, 12, 7)
         bracket = "Beginner (5-7)" if u_age <= 7 else "Advanced (8-12)"
         task_text = PUZZLES[bracket][st.session_state.stage]
         
-        if not st.session_state.spoken:
-            speak_task(task_text)
-            st.session_state.spoken = True
+        st.subheader(f"Level {st.session_state.stage}: {task_text}")
+        canvas_result = st_canvas(stroke_width=4, stroke_color="#000", background_color="#FFF", height=300, width=800, key=f"c{st.session_state.stage}")
 
-        st.subheader(f"Task {st.session_state.stage}: {task_text}")
-        canvas = st_canvas(stroke_width=4, stroke_color="#000", background_color="#FFF", height=300, width=800, key=f"c{st.session_state.stage}")
-
-        if st.button(f"Submit Task {st.session_state.stage}"):
-            if canvas.image_data is not None:
-                gray = cv2.cvtColor(canvas.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
-                score = run_prediction(gray, run_dl=(st.session_state.stage >= 2))
-                st.session_state.scores.append(score)
+        if st.button(f"Submit Level {st.session_state.stage}"):
+            if canvas_result.image_data is not None:
+                gray = cv2.cvtColor(canvas_result.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
+                probs = run_dual_prediction(gray, run_dl=(st.session_state.stage >= 2))
+                
+                st.session_state.data["level_results"].append(probs)
                 st.session_state.stage += 1
-                st.session_state.spoken = False
                 st.rerun()
 
-    elif st.session_state.stage > 3:
-        avg_score = np.mean(st.session_state.scores)
-        label, color = get_severity(avg_score)
+    if st.session_state.stage > 3:
+        st.header("🏁 Final Severity Assessment")
         
-        st.header("🏁 Assessment Result")
+        # Calculate Average Probability across all tasks
+        # We average RF for all and DL for levels 2/3
+        all_probs = []
+        for i, res in enumerate(st.session_state.data["level_results"]):
+            all_probs.append(res["rf_prob"])
+            if res["dl_prob"] > 0: all_probs.append(res["dl_prob"])
+        
+        avg_probability = np.mean(all_probs)
+        label, color = get_severity_label(avg_probability)
+        
+        
+
         if label == "Normal":
             st.balloons()
             st.success(f"### Result: {label}")
         else:
             st.markdown(f"### Result: :{color}[{label}]")
         
-        st.metric("Total Risk Probability", f"{avg_score*100:.1f}%")
-        if st.button("Restart"):
-            st.session_state.update({'stage': 1, 'scores': [], 'spoken': False})
+        st.write(f"Confidence Score: **{avg_probability*100:.1f}%** (Threshold: {GLOBAL_THRESHOLD*100}%)")
+        
+        st.divider()
+        if st.button("Restart Assessment"):
+            st.session_state.update({'stage': 1, 'data': {"level_results": []}})
             st.rerun()
 
 with tab2:
-    st.header("Upload Handwriting Sample")
-    file = st.file_uploader("Upload an image (JPG/PNG) of handwriting", type=['png', 'jpg', 'jpeg'])
-    if file:
-        img = Image.open(file).convert('L')
+    st.header("Single Sample Upload")
+    up = st.file_uploader("Choose handwriting image...", type=['png', 'jpg', 'jpeg'])
+    if up:
+        img = Image.open(up).convert('L')
         gray_up = np.array(img)
-        st.image(img, caption="Uploaded Sample", width=400)
+        st.image(up, width=400, caption="Uploaded Sample")
         
-        if st.button("Analyze Uploaded File"):
+        if st.button("Run Severity Analysis"):
+            res = run_dual_prediction(gray_up, run_dl=True)
+            # Use max probability for a single upload to be cautious
+            max_prob = max(res["rf_prob"], res["dl_prob"])
+            label, color = get_severity_label(max_prob)
             
-            score = run_prediction(gray_up, run_dl=True)
-            label, color = get_severity(score)
-            
-            st.divider()
-            if label == "Normal":
-                st.success(f"### Detection: {label}")
-            else:
-                st.markdown(f"### Detection: :{color}[{label}]")
-            st.progress(score)
-            st.write(f"Certainty: {score*100:.1f}%")
+            st.subheader("Analysis Breakdown")
+            st.markdown(f"**Overall Classification: :{color}[{label}]**")
+            st.write(f"RF Confidence: {res['rf_prob']*100:.1f}%")
+            st.write(f"DL Confidence: {res['dl_prob']*100:.1f}%")
