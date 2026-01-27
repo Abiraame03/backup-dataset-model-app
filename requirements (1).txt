@@ -3,3 +3,8 @@ numpy
 Pillow
 tensorflow
 h5py
+joblib
+scikit-learn==1.6.1
+opencv-python-headless
+streamlit-drawable_canvas
+scikit-image
