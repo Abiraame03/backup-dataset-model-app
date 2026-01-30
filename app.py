@@ -21,7 +21,7 @@ DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
 
 # Thresholds
 CANVAS_THRESHOLD = 0.55
-UPLOAD_THRESHOLD = 0.55
+UPLOAD_THRESHOLD = 0.60
 
 IMG_SIZE_DL = (160, 160)
 
