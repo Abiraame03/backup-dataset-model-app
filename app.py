@@ -58,7 +58,7 @@ def get_severity(prob, threshold):
         return "Normal", "green", "✅"
     elif threshold <= prob < (threshold + 0.5):
         return "Mild Dyslexia", "blue", "⚠️"
-    elif (threshold + 0.10) <= prob < (threshold + 0.30):
+    elif (threshold + 0.10) <= prob < (threshold + 0.20):
         return "Moderate Dyslexia", "orange", "🟠"
     else:
         return "Severe Dyslexia", "red", "🔴"
