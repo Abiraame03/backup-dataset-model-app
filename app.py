@@ -214,27 +214,4 @@ with t2:
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
-import json, os
 
-if st.button("🎮 Open & Play in Unity"):
-
-    path = r"C:/temp/unity_data.json"
-
-    data = {
-        "name": st.session_state.get("player_name", "Player"),
-        "age": st.session_state.get("player_age", 7),
-        "gender": st.session_state.get("player_gender", "Male"),
-        "level": 2   # 👉 Replace this with your severity mapping
-    }
-
-    os.makedirs("C:/temp", exist_ok=True)
-
-    with open(path, "w") as f:
-        json.dump(data, f)
-
-    st.success("✅ Data sent to Unity!")
-    st.info("👉 Now open Unity and press ▶ Play")
-    with st.sidebar:
-    st.session_state["player_name"] = st.text_input("Name", "Player")
-    st.session_state["player_gender"] = st.radio("Gender", ["Male", "Female"])
-    st.session_state["player_age"] = st.slider("Age", 5, 12, 7)
