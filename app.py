@@ -216,18 +216,21 @@ with t2:
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
 import json, os
 
-path = r"C:/temp/unity_data.json"
+if st.button("🎮 Open & Play in Unity"):
 
-data = {
-    "name": "Player",
-    "age": 7,
-    "gender": "Male",
-    "level": 2   # decide based on severity
-}
+    path = r"C:/temp/unity_data.json"
 
-os.makedirs("C:/temp", exist_ok=True)
+    data = {
+        "name": st.session_state.get("player_name", "Player"),
+        "age": st.session_state.get("player_age", 7),
+        "gender": st.session_state.get("player_gender", "Male"),
+        "level": 2   # 👉 Replace this with your severity mapping
+    }
 
-with open(path, "w") as f:
-    json.dump(data, f)
+    os.makedirs("C:/temp", exist_ok=True)
 
-st.success("✅ Now open Unity and press PLAY")
+    with open(path, "w") as f:
+        json.dump(data, f)
+
+    st.success("✅ Data sent to Unity!")
+    st.info("👉 Now open Unity and press ▶ Play")
