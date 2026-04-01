@@ -221,17 +221,46 @@ with t2:
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
-import json, os
+else:
+    # --- FINAL SUMMARY SECTION ---
+    avg_score = np.mean(st.session_state.results)
+    label, color, icon = get_severity(avg_score, CANVAS_THRESHOLD)
+    
+    end_time = time.time()
+    total_seconds = end_time - st.session_state.start_time
+    time_display = time.strftime("%M:%S", time.gmtime(total_seconds))
+    test_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    if label == "Normal":
+        st.balloons()
+        st.success(f"### Final Result: {label} {icon}")
+    else:
+        st.error(f"### Final Result: {label} {icon}")
 
-if len(st.session_state.results) == 3:
+    st.write(f"🕒 **Test Date:** {test_date}")
 
-    st.success("✅ Assessment Completed!")
+    with st.expander("🔍 Detailed Model Performance Breakdown"):
+        summary_data = []
+        for i in range(3):
+            summary_data.append({
+                "Level": i+1,
+                "RF Prediction": f"{st.session_state.rf_raw[i]*100:.1f}%",
+                "DL Prediction": f"{st.session_state.dl_raw[i]*100:.1f}%",
+                "Weighted Score": f"{st.session_state.results[i]*100:.1f}%"
+            })
+        st.table(summary_data)
+
+    st.divider()
+    st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
+              delta=f"Time: {time_display}", delta_color="normal")
+
+    # ================= UNITY BUTTON =================
+    st.subheader("🎮 Play in Unity")
 
     if st.button("🎮 Play in Unity"):
 
         path = r"C:/temp/unity_data.json"
 
-        # 🔥 Map severity → level
         level_map = {
             "Normal": 1,
             "Mild Dyslexia": 2,
@@ -254,3 +283,15 @@ if len(st.session_state.results) == 3:
             json.dump(data, f)
 
         st.success("🎮 Ready! Now open Unity and press ▶ Play")
+
+    # RESET BUTTON
+    if st.button("Start New Assessment"):
+        st.session_state.update({
+            'stage': 1,
+            'results': [],
+            'rf_raw': [],
+            'dl_raw': [],
+            'spoken': False,
+            'start_time': None
+        })
+        st.rerun()
