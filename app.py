@@ -223,14 +223,15 @@ with t2:
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
 else:
     # --- FINAL SUMMARY SECTION ---
+ else:
     avg_score = np.mean(st.session_state.results)
     label, color, icon = get_severity(avg_score, CANVAS_THRESHOLD)
-    
+
     end_time = time.time()
     total_seconds = end_time - st.session_state.start_time
     time_display = time.strftime("%M:%S", time.gmtime(total_seconds))
     test_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    
+
     if label == "Normal":
         st.balloons()
         st.success(f"### Final Result: {label} {icon}")
@@ -253,6 +254,48 @@ else:
     st.divider()
     st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
               delta=f"Time: {time_display}", delta_color="normal")
+
+    # ================= UNITY BUTTON =================
+    st.subheader("🎮 Play in Unity")
+
+    if st.button("🎮 Open & Play in Unity"):
+
+        path = r"C:/temp/unity_data.json"
+
+        level_map = {
+            "Normal": 1,
+            "Mild Dyslexia": 2,
+            "Moderate Dyslexia": 3,
+            "Severe Dyslexia": 1
+        }
+
+        level = level_map.get(label, 1)
+
+        data = {
+            "name": st.session_state["player_name"],
+            "age": st.session_state["player_age"],
+            "gender": st.session_state["player_gender"],
+            "level": level
+        }
+
+        os.makedirs("C:/temp", exist_ok=True)
+
+        with open(path, "w") as f:
+            json.dump(data, f)
+
+        st.success("🎮 Ready! Now open Unity and press ▶ Play")
+
+    # RESET
+    if st.button("Start New Assessment"):
+        st.session_state.update({
+            'stage': 1,
+            'results': [],
+            'rf_raw': [],
+            'dl_raw': [],
+            'spoken': False,
+            'start_time': None
+        })
+        st.rerun()
 
     # ================= UNITY BUTTON =================
     st.subheader("🎮 Play in Unity")
