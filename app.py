@@ -214,3 +214,20 @@ with t2:
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
+import json, os
+
+path = r"C:/temp/unity_data.json"
+
+data = {
+    "name": "Player",
+    "age": 7,
+    "gender": "Male",
+    "level": 2   # decide based on severity
+}
+
+os.makedirs("C:/temp", exist_ok=True)
+
+with open(path, "w") as f:
+    json.dump(data, f)
+
+st.success("✅ Now open Unity and press PLAY")
