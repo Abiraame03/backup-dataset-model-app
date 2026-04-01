@@ -15,7 +15,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Precision Dyslexia Analyzer", layout="wide")
 st.title("🧠 Coordination & Dyslexia Severity Analyzer")
 st.markdown("---")
-with st.sidebar:
+st.sidebar:
     st.session_state["player_name"] = st.text_input("Name", "Player")
     st.session_state["player_gender"] = st.radio("Gender", ["Male", "Female"])
     st.session_state["player_age"] = st.slider("Age", 5, 12, 7)
