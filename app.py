@@ -19,6 +19,7 @@ with st.sidebar:
     st.session_state["player_name"] = st.text_input("Name", "Player")
     st.session_state["player_gender"] = st.radio("Gender", ["Male", "Female"])
     st.session_state["player_age"] = st.slider("Age", 5, 12, 7)
+    
 st.title("🧠 Coordination & Dyslexia Severity Analyzer")
 st.markdown("---")
 
@@ -136,7 +137,7 @@ with t1:
         if st.session_state.start_time is None:
             st.session_state.start_time = time.time()
 
-        age = st.sidebar.slider("Age", 5, 12, 7)
+        age = st.session_state["player_age"]
         task_list = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"]
         current_task = task_list[st.session_state.stage]
         
