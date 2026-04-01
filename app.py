@@ -11,6 +11,13 @@ from skimage.feature import hog
 from streamlit_drawable_canvas import st_canvas
 import streamlit.components.v1 as components
 
+with st.sidebar:
+    st.markdown("### 👤 Player Profile")
+
+    st.session_state["player_name"] = st.text_input("Name", "Player")
+    st.session_state["player_gender"] = st.radio("Gender", ["Male", "Female"])
+    st.session_state["player_age"] = st.slider("Age", 5, 12, 7)
+    
 # --- I. Configuration ---
 st.set_page_config(page_title="Precision Dyslexia Analyzer", layout="wide")
 st.title("🧠 Coordination & Dyslexia Severity Analyzer")
@@ -214,4 +221,36 @@ with t2:
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
+import json, os
 
+if len(st.session_state.results) == 3:
+
+    st.success("✅ Assessment Completed!")
+
+    if st.button("🎮 Play in Unity"):
+
+        path = r"C:/temp/unity_data.json"
+
+        # 🔥 Map severity → level
+        level_map = {
+            "Normal": 1,
+            "Mild Dyslexia": 2,
+            "Moderate Dyslexia": 3,
+            "Severe Dyslexia": 1
+        }
+
+        level = level_map.get(label, 1)
+
+        data = {
+            "name": st.session_state["player_name"],
+            "age": st.session_state["player_age"],
+            "gender": st.session_state["player_gender"],
+            "level": level
+        }
+
+        os.makedirs("C:/temp", exist_ok=True)
+
+        with open(path, "w") as f:
+            json.dump(data, f)
+
+        st.success("🎮 Ready! Now open Unity and press ▶ Play")
