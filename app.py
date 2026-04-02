@@ -184,7 +184,8 @@ with t1:
         st.divider()
         st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
                   delta=f"Time: {time_display}", delta_color="normal")
-    
+        from unity_launcher import show_unity_button
+        show_unity_button(label, avg_score)
 with t2:
     st.header("Upload Image Analysis")
     up = st.file_uploader("Upload a photo of written text", type=['png', 'jpg', 'jpeg'])
