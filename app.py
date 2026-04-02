@@ -240,3 +240,5 @@ if len(st.session_state.get("results", [])) == 3:
 
         st.success("✅ Data sent to Unity!")
         st.info("👉 Now open Unity and press ▶ Play")
+from unity_launcher import show_unity_button
+show_unity_button(final_result, aggregate_index)
