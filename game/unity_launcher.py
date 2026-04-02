@@ -7,7 +7,7 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
     st.write("The game below is now connected to your AI analysis.")
 
     # 1. Your Live GitHub Pages Link
-    base_url = "https://abiraame03.github.io/backup-dataset-model-app/index.html"
+    base_url = "https://abiraame03.github.io/backup-dataset-model-app/game/index.html"
 
     # 2. Attach the results to the URL so Unity can read them
     # We use 'result' and 'score' as the keys
