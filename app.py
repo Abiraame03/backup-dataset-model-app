@@ -184,7 +184,8 @@ with t1:
         st.divider()
         st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
                   delta=f"Time: {time_display}", delta_color="normal")
-        
+        from unity_launcher import show_unity_button
+        show_unity_button(label, avg_score)
         if st.button("Start New Assessment"):
             st.session_state.update({'stage': 1, 'results': [], 'rf_raw': [], 'dl_raw': [], 'spoken': False, 'start_time': None})
             st.rerun()
@@ -240,5 +241,3 @@ if len(st.session_state.get("results", [])) == 3:
 
         st.success("✅ Data sent to Unity!")
         st.info("👉 Now open Unity and press ▶ Play")
-from unity_launcher import show_unity_button
-show_unity_button(final_result, aggregate_index)
