@@ -5,12 +5,12 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
     st.markdown("---")
     st.markdown("## 🎮 Play Integrated Game")
     
-    # This URL points to the game folder in your GitHub deployment
-    # Replace 'username' and 'repo-name' with your actual GitHub info
-    # Usually: https://<your-username>.github.io/<your-repo-name>/game/index.html
+    # Use the new link GitHub gave you + the folder name where your game is
+    # If your game is in a folder named 'game', it looks like this:
+    base_url = "https://abiraame03.github.io/backup-dataset-model-app/"
     
-    # FOR NOW, let's use a relative path if you're keeping it in the same repo:
-    game_url = f"game/index.html?result={final_result}&score={aggregate_index}"
+    game_url = f"{base_url}?result={final_result}&score={aggregate_index}"
 
-    # Embed the game
+    # This embeds the game perfectly!
+    import streamlit.components.v1 as components
     components.iframe(game_url, height=650, scrolling=False)
