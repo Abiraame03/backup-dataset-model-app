@@ -1,49 +1,42 @@
-"""
-unity_launcher.py
------------------
-FILE LOCATION: Save this in your GitHub repo, same folder as app.py
-
-HOW TO USE IN app.py — add these lines at the BOTTOM of app.py:
-─────────────────────────────────────────────────────────────────
-    from unity_launcher import show_unity_button
-    show_unity_button(final_result, aggregate_index)
-─────────────────────────────────────────────────────────────────
-Replace `final_result` with your result variable (e.g. "Mild Dyslexia")
-Replace `aggregate_index` with your score variable (e.g. 56.3)
-"""
-
 import streamlit as st
-import json
+import streamlit.components.v1 as components
+import subprocess
+import time
+import requests
+import os
+
+def start_game_server():
+    """Starts a local server in the background if it's not already running."""
+    try:
+        # Check if server is already running on port 8000
+        requests.get("http://localhost:8000", timeout=0.1)
+    except:
+        # Path to your Unity build folder
+        game_path = "C:/unity_projects"
+        
+        if os.path.exists(game_path):
+            # Start the Python server silently in the background
+            subprocess.Popen(
+                ["python", "-m", "http.server", "8000"], 
+                cwd=game_path,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            time.sleep(1) # Wait for server to boot
 
 def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.0):
-
-    result_data = {
-        "dyslexia_result": str(final_result),
-        "aggregate_index": round(float(aggregate_index), 1)
-    }
-    result_json = json.dumps(result_data, indent=2)
+    # 1. Start the server automatically
+    start_game_server()
 
     st.markdown("---")
-    st.markdown("## 🎮 Play in Unity")
-    st.write("Launch the Chocolate World dyslexia game with your result loaded.")
+    st.markdown("## 🎮 Play Integrated Game")
+    st.write("The game below is now connected to your AI analysis.")
 
-    col1, col2 = st.columns(2)
+    # 2. Create the URL with the AI data attached
+    # This sends your results directly TO the Unity game
+    game_url = f"http://localhost:8000/index.html?result={final_result}&score={aggregate_index}"
 
-    with col1:
-        st.download_button(
-            label="⬇️ Step 1: Download Result File",
-            data=result_json,
-            file_name="dyslexia_result.json",
-            mime="application/json",
-            use_container_width=True,
-        )
+    # 3. Embed the game directly in the page (No new tabs needed!)
+    components.iframe(game_url, height=650, scrolling=False)
 
-    with col2:
-        import webbrowser
-        if st.button("🎮 Step 2: Play Unity Game", use_container_width=True):
-            webbrowser.open("file:///C:/unity_projects/index.html")
-            st.success("✅ Opening Unity Game in Browser...")
-    st.info(
-        "**First time?** Run the `ChocolateWorld_Launcher.bat` file on your PC once "
-        "to register the game launcher. After that, Step 2 will open Unity automatically."
-    )
+    st.success(f"✅ Game loaded with Result: {final_result} ({aggregate_index}%)")
