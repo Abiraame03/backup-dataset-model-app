@@ -40,18 +40,10 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
         )
 
     with col2:
-        if st.button("🎮 Step 2: Launch Unity Game", use_container_width=True):
-            # This uses a custom URL protocol installed by the .bat file on the user's PC
-            launch_url = (
-                f"unitylauncher://?result={final_result.replace(' ', '%20')}"
-                f"&index={aggregate_index}"
-            )
-            st.markdown(
-                f'<meta http-equiv="refresh" content="0; url={launch_url}">',
-                unsafe_allow_html=True
-            )
-            st.success("✅ Launching Chocolate World...")
-
+        import webbrowser
+        if st.button("🎮 Step 2: Play Unity Game", use_container_width=True):
+            webbrowser.open("file:///C:/unity_projects/index.html")
+            st.success("✅ Opening Unity Game in Browser...")
     st.info(
         "**First time?** Run the `ChocolateWorld_Launcher.bat` file on your PC once "
         "to register the game launcher. After that, Step 2 will open Unity automatically."
