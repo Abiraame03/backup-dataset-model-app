@@ -14,21 +14,6 @@ Replace `aggregate_index` with your score variable (e.g. 56.3)
 
 import streamlit as st
 import json
-import subprocess
-import time
-import requests
-
-# Function to start the game server if it's not already running
-def start_game_server():
-    try:
-        # Check if server is already up
-        requests.get("http://localhost:8000", timeout=1)
-    except:
-        # If not, start it in the background
-        subprocess.Popen(["python", "-m", "http.server", "8000"], cwd="C:/unity_projects")
-        time.sleep(2) # Give it a second to wake up
-
-start_game_server()
 
 def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.0):
 
