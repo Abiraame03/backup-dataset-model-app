@@ -3,8 +3,7 @@ import urllib.parse
 
 def show_unity_button(final_result: str = "Normal", aggregate_index: float = 0.0):
     st.markdown("---")
-    st.subheader("🕹️ Developer Control")
-
+    st.subheader("Integrated Game")
     project_path = "C:/unity_projects/mild_levels"
 
     # Encode the path safely for a URL
@@ -13,7 +12,7 @@ def show_unity_button(final_result: str = "Normal", aggregate_index: float = 0.0
     unity_hub_url = f"unityhub://open?path={encoded_path}"
 
     st.link_button(
-        "🚀 OPEN PROJECT IN UNITY HUB",
+        "OPEN UNITY - CHOCOLATE WORLD",
         url=unity_hub_url,
         use_container_width=True,
         type="primary"
