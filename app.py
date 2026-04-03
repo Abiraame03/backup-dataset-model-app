@@ -54,7 +54,7 @@ def get_dynamic_threshold(age):
     Younger kids (5-7) need more margin for error (Higher Threshold).
     """
     if age <= 7:
-        return 0.65  # Lenient for young children
+        return 0.55  # Lenient for young children
     elif age <= 10:
         return 0.55  # Medium
     else:
