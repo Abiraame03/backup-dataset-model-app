@@ -8,7 +8,7 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
 
     # 1. AUTO-DETECT UNITY (Checks the most likely locations)
     possible_paths = [
-        r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe",
+        r"C:\Program Files\Unity Hub\Unity Hub.exe",
         r"C:\Program Files\Unity\Hub\Editor\2022.3.10f1\Editor\Unity.exe",
         r"C:\Program Files\Unity\Editor\Unity.exe"
     ]
