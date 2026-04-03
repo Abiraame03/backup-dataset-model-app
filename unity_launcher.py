@@ -7,7 +7,7 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
     st.markdown("### 🎮 Launch Chocolate World")
     
     # Path to your local build
-    game_path = r"C:\unity_projects\mild_levels\Assets\game levles.unity"
+    game_path = r"C:\unity_projects\mild_levels\Build\mild_levels.exe"
     
     if st.button("🚀 Launch Local Game", use_container_width=True):
         if os.path.exists(game_path):
