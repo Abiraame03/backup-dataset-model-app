@@ -212,7 +212,7 @@ if len(st.session_state.get("results", [])) == 3:
     
     # 1. This is the exact path to your newly built game
     # Ensure you renamed 'mild_levels.exe' to 'ChocolateWorld.exe' in your folder!
-    game_path = r"C:\unity_projects\mild_levels\Build\ChocolateWorld.exe"
+    game_path = r"C:\unity_projects\mild_levels\Build\mild_levels.exe"
     
     # 2. This button will trigger the local file launch
     if st.button("🚀 Launch Chocolate World Game", use_container_width=True):
