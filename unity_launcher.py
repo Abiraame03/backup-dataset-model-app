@@ -11,6 +11,7 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
         r"C:\Program Files\Unity Hub\Unity Hub.exe",
         r"C:\Program Files\Unity\Hub\Editor\2022.3.10f1\Editor\Unity.exe",
         r"C:\Program Files\Unity\Editor\Unity.exe"
+        r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe"
     ]
     
     unity_exe = next((p for p in possible_paths if os.path.exists(p)), None)
