@@ -14,16 +14,13 @@ import streamlit.components.v1 as components
 # --- I. Configuration ---
 st.set_page_config(page_title="Precision Dyslexia Analyzer", layout="wide")
 st.title("🧠 Coordination & Dyslexia Severity Analyzer")
-st.markdown("---")
 
-# OLD MODEL PATH (Replaced with your specific model file)
+# PATHS: Update these to your local paths
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
-DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"  # From your old code
+DL_MODEL_PATH = "models/mobilenetv2_bilstm_final.h5" 
 
-# Thresholds
+IMG_SIZE_DL = (160, 160) 
 CANVAS_THRESHOLD = 0.50
-UPLOAD_THRESHOLD = 0.50
-IMG_SIZE_DL = (160, 160)  # Standardized size from your old model
 
 PUZZLES = {
     "Beginner (5-7)": {
@@ -38,197 +35,121 @@ PUZZLES = {
     }
 }
 
-# --- II. Audio Instruction Component ---
-def speak_text(text):
-    components.html(f"""
-        <script>
-        window.speechSynthesis.cancel();
-        var msg = new SpeechSynthesisUtterance('{text}');
-        msg.rate = 0.9;
-        window.speechSynthesis.speak(msg);
-        </script>
-    """, height=0)
-
-# --- III. Logic & Accuracy Engine ---
-def get_severity(prob, threshold):
-    """Refined severity mapping based on your request"""
-    if prob < threshold:
-        return "Normal", "green", "✅"
-    elif threshold <= prob < (threshold + 0.2):
-        return "Mild Dyslexia", "blue", "⚠️"
-    elif (threshold + 0.2) <= prob < (threshold + 0.4):
-        return "Moderate Dyslexia", "orange", "🟠"
-    else:
-        return "Severe Dyslexia", "red", "🔴"
-
-def preprocess_image_for_dl(gray_img):
-    """
-    Specifically prepares the image for the old MobileNetV2 model.
-    Converts to RGB and normalizes as the old code did.
-    """
-    # 1. Handle background/cropping
-    _, thresh = cv2.threshold(gray_img, 200, 255, cv2.THRESH_BINARY_INV)
-    coords = cv2.findNonZero(thresh)
-    if coords is not None:
-        x, y, w, h = cv2.boundingRect(coords)
-        roi = gray_img[y:y+h, x:x+w]
-    else:
-        roi = gray_img
-
-    # 2. Convert to RGB (MobileNetV2 expectation)
-    rgb_img = cv2.cvtColor(roi, cv2.COLOR_GRAY2RGB)
-    
-    # 3. Resize and Normalize (Matching the 1/255.0 from your old code)
-    resized = cv2.resize(rgb_img, IMG_SIZE_DL)
-    normalized = resized / 255.0
-    return np.expand_dims(normalized, axis=0)
-
-def ensemble_predict(gray_img, stage):
-    # --- RF Part ---
-    img_64 = cv2.resize(gray_img, (64, 64))
-    feats = hog(img_64, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
-    # Using variance and mean as extra features as per your new logic
-    rf_inp = np.concatenate([feats, [np.var(img_64), np.mean(img_64), 0, 0]]).reshape(1, -1)
-    rf_p = rf_m.predict_proba(rf_inp)[0][1] if rf_m else 0.0
-
-    # --- DL Part (Old Model) ---
-    dl_p = 0.0
-    if dl_m:
-        try:
-            dl_inp = preprocess_image_for_dl(gray_img)
-            prediction_output = dl_m.predict(dl_inp, verbose=0)
-            # Extracts the probability of "Dyslexic" (assumed single output at [0][0])
-            dl_p = float(prediction_output[0][0])
-        except Exception as e:
-            st.error(f"DL Model Error: {e}")
-
-    # --- Weighted Ensemble Logic ---
-    if stage == 1:
-        score = (rf_p * 0.9 + dl_p * 0.1)
-    elif stage == 2:
-        score = (rf_p * 0.5 + dl_p * 0.5)
-    else:
-        score = (rf_p * 0.2 + dl_p * 0.8)
-        
-    return score, rf_p, dl_p
-
-# --- IV. Model Loading ---
+# --- II. Model Loading ---
 @st.cache_resource
 def load_models():
     rf = joblib.load(RF_MODEL_PATH) if os.path.exists(RF_MODEL_PATH) else None
     dl = None
     if os.path.exists(DL_MODEL_PATH):
         try:
-            # Loading old model without compilation for inference
             dl = tf.keras.models.load_model(DL_MODEL_PATH, compile=False)
         except Exception as e:
-            st.error(f"Could not load old DL model: {e}")
+            st.error(f"DL Model Load Error: {e}")
     return rf, dl
 
 rf_m, dl_m = load_models()
 
-# --- V. UI Workflow ---
+# --- III. Logic Engine ---
+def get_severity(prob, threshold):
+    if prob < threshold:
+        return "Normal", "green", "✅"
+    elif threshold <= prob < (threshold + 0.15):
+        return "Mild Dyslexia", "blue", "⚠️"
+    elif (threshold + 0.15) <= prob < (threshold + 0.30):
+        return "Moderate Dyslexia", "orange", "🟠"
+    else:
+        return "Severe Dyslexia", "red", "🔴"
+
+def ensemble_predict(canvas_rgba, stage):
+    # 1. Convert to Grayscale
+    # Canvas comes in as RGBA (0-255)
+    img_rgba = canvas_rgba.astype(np.uint8)
+    gray = cv2.cvtColor(img_rgba, cv2.COLOR_RGBA2GRAY)
+    
+    # 2. RF Path (HOG Features)
+    # We use a 64x64 version for the RF model
+    img_64 = cv2.resize(gray, (64, 64))
+    feats = hog(img_64, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
+    rf_inp = np.concatenate([feats, [np.var(img_64), np.mean(img_64), 0, 0]]).reshape(1, -1)
+    rf_p = rf_m.predict_proba(rf_inp)[0][1] if rf_m else 0.0
+
+    # 3. DL Path (The "Old Model" Integration)
+    dl_p = 0.0
+    if dl_m:
+        # Convert grayscale to RGB (3 channels) as required by MobileNetV2
+        dl_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+        # Resize to exactly 160x160 (from your old app code)
+        dl_img = cv2.resize(dl_img, IMG_SIZE_DL)
+        # Normalize 1/255.0 (CRITICAL for the old model)
+        dl_inp = np.expand_dims(dl_img / 255.0, axis=0)
+        
+        prediction = dl_m.predict(dl_inp, verbose=0)
+        dl_p = float(prediction[0][0]) 
+
+    # 4. Final Weighted Scoring
+    if stage == 1: 
+        score = (rf_p * 0.9 + dl_p * 0.1)
+    elif stage == 2: 
+        score = (rf_p * 0.5 + dl_p * 0.5)
+    else: 
+        score = (rf_p * 0.2 + dl_p * 0.8)
+        
+    return score, rf_p, dl_p
+
+# --- IV. UI Flow ---
 if 'stage' not in st.session_state:
-    st.session_state.update({
-        'stage': 1, 
-        'results': [], 
-        'rf_raw': [], 
-        'dl_raw': [], 
-        'spoken': False,
-        'start_time': None
-    })
+    st.session_state.update({'stage': 1, 'results': [], 'rf_raw': [], 'dl_raw': [], 'start_time': time.time()})
 
-t1, t2 = st.tabs(["✍️ Assessment Canvas", "📤 External File"])
+age = st.sidebar.slider("Age", 5, 12, 7)
+task_list = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"]
 
-with t1:
-    if st.session_state.stage <= 3:
-        if st.session_state.start_time is None:
-            st.session_state.start_time = time.time()
+if st.session_state.stage <= 3:
+    current_task = task_list[st.session_state.stage]
+    st.subheader(f"Task {st.session_state.stage} of 3")
+    st.info(f"📝 **Task:** {current_task}")
 
-        age = st.sidebar.slider("Age", 5, 12, 7)
-        task_list = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"]
-        current_task = task_list[st.session_state.stage]
-        
-        if not st.session_state.spoken:
-            speak_text(f"Task {st.session_state.stage}. {current_task}")
-            st.session_state.spoken = True
+    canvas = st_canvas(
+        stroke_width=5, stroke_color="#000", background_color="#FFF",
+        height=350, width=800, key=f"canvas_{st.session_state.stage}"
+    )
 
-        col_text, col_audio = st.columns([4, 1])
-        with col_text:
-            st.subheader(f"Level {st.session_state.stage}")
-            st.info(f"📝 **Task:** {current_task}")
-        with col_audio:
-            if st.button("🔊 Replay"):
-                speak_text(current_task)
-
-        canvas = st_canvas(stroke_width=5, stroke_color="#000", background_color="#FFF", height=300, width=750, key=f"c{st.session_state.stage}")
-        
-        if st.button(f"Submit Task {st.session_state.stage}", use_container_width=True):
-            if canvas.image_data is not None:
-                gray = cv2.cvtColor(canvas.image_data.astype(np.uint8), cv2.COLOR_RGBA2GRAY)
-                # Check if user actually drew something (black pixels)
-                if np.sum(gray < 255) > 400:
-                    final_p, r_p, d_p = ensemble_predict(gray, st.session_state.stage)
-                    st.session_state.results.append(final_p)
+    if st.button("Submit Analysis", use_container_width=True):
+        if canvas.image_data is not None:
+            # Check if there is enough 'ink' on the canvas
+            if np.sum(canvas.image_data[:, :, :3] < 255) > 500:
+                with st.spinner("Processing drawing..."):
+                    score, r_p, d_p = ensemble_predict(canvas.image_data, st.session_state.stage)
+                    st.session_state.results.append(score)
                     st.session_state.rf_raw.append(r_p)
                     st.session_state.dl_raw.append(d_p)
                     st.session_state.stage += 1
-                    st.session_state.spoken = False
                     st.rerun()
-                else:
-                    st.warning("Canvas is empty. Please draw the task.")
-    else:
-        # Results View
-        avg_score = np.mean(st.session_state.results)
-        label, color, icon = get_severity(avg_score, CANVAS_THRESHOLD)
-        
-        end_time = time.time()
-        total_seconds = end_time - st.session_state.start_time
-        time_display = time.strftime("%M:%S", time.gmtime(total_seconds))
-        test_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-        
-        if label == "Normal":
-            st.balloons()
-            st.success(f"### Final Result: {label} {icon}")
-        else:
-            st.error(f"### Final Result: {label} {icon}")
+            else:
+                st.warning("Please draw on the canvas before submitting.")
+else:
+    # --- Final Results View (Matches your screenshot) ---
+    avg_score = np.mean(st.session_state.results)
+    label, color, icon = get_severity(avg_score, CANVAS_THRESHOLD)
+    test_date = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        st.write(f"🕒 **Test Date:** {test_date}")
+    st.markdown(f"### Final Result: {label} {icon}")
+    st.write(f"🕒 **Test Date:** {test_date}")
 
-        with st.expander("🔍 Detailed Model Performance Breakdown"):
-            summary_data = []
-            for i in range(3):
-                summary_data.append({
-                    "Level": i+1,
-                    "RF Prediction": f"{st.session_state.rf_raw[i]*100:.1f}%",
-                    "DL (Old Model)": f"{st.session_state.dl_raw[i]*100:.1f}%",
-                    "Weighted Score": f"{st.session_state.results[i]*100:.1f}%"
-                })
-            st.table(summary_data)
+    with st.expander("📊 Detailed Model Performance Breakdown", expanded=True):
+        summary_data = []
+        for i in range(3):
+            summary_data.append({
+                "Level": i+1,
+                "RF Prediction": f"{st.session_state.rf_raw[i]*100:.1f}%",
+                "DL (Old Model)": f"{st.session_state.dl_raw[i]*100:.1f}%",
+                "Weighted Score": f"{st.session_state.results[i]*100:.1f}%"
+            })
+        st.table(summary_data)
 
-        st.divider()
-        st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
-                  delta=f"Time: {time_display}", delta_color="normal")
-        from unity_launcher import show_unity_button
-        show_unity_button()
-        # Reset button to restart the test
-        if st.button("Restart Assessment"):
-            for key in st.session_state.keys():
-                del st.session_state[key]
-            st.rerun()
-
-with t2:
-    st.header("Upload Image Analysis")
-    up = st.file_uploader("Upload a photo of written text", type=['png', 'jpg', 'jpeg'])
-    if up:
-        img_arr = np.array(Image.open(up).convert('L'))
-        st.image(up, width=400)
-        if st.button("Run Sentence Analysis"):
-            # Using stage 3 weighting for external files
-            final_p, r_p, d_p = ensemble_predict(img_arr, stage=3)
-            label, color, icon = get_severity(final_p, UPLOAD_THRESHOLD)
-            
-            st.markdown(f"## {icon} Detection: :{color}[{label}]")
-            st.progress(final_p)
-            st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
-            st.info(f"Old DL Model Confidence: {d_p*100:.1f}% | RF Model Confidence: {r_p*100:.1f}%")
+    st.divider()
+    st.metric("Aggregate Index", f"{avg_score*100:.1f}%")
+    from unity_launcher import show_unity_button
+    show_unity_button()
+    if st.button("Restart Assessment"):
+        for key in list(st.session_state.keys()): del st.session_state[key]
+        st.rerun()
