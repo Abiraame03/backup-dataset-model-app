@@ -17,5 +17,3 @@ def show_unity_button(final_result: str = "Normal", aggregate_index: float = 0.0
         use_container_width=True,
         type="primary"
     )
-
-    st.caption("⚠️ Requires Unity Hub to be installed and running on your local machine.")
