@@ -1,32 +1,34 @@
 import streamlit as st
 import subprocess
 import os
+import glob
 
 def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.0):
-    st.markdown("---")
-    st.subheader("🏗️ Open Project in Unity Editor")
-
-    # PASTE YOUR PATH FROM STEP 1 HERE:
-    unity_exe = r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe"
-    
-    # YOUR PROJECT FOLDER
+    # --- CONFIGURATION ---
+    # Path where Unity Hub usually installs editors
+    hub_editors_path = r"C:\Program Files\Unity\Hub\Editor"
+    # Path to your project
     project_path = r"C:\unity_projects\mild_levels"
 
-    if st.button("🏗️ Open Assets in Unity", use_container_width=True):
-        # Validation Check
-        unity_exists = os.path.exists(unity_exe)
-        project_exists = os.path.exists(project_path)
-        
-        if unity_exists and project_exists:
+    # --- AUTO-PATH FINDER ---
+    # This looks for ANY Unity.exe inside the Hub folder automatically
+    search_pattern = os.path.join(hub_editors_path, "*", "Editor", "Unity.exe")
+    found_versions = glob.glob(search_pattern)
+    
+    unity_exe = found_versions[0] if found_versions else None
+
+    # --- UI RENDER ---
+    if st.button("🏗️ OPEN PROJECT ASSETS", use_container_width=True, type="primary"):
+        if unity_exe and os.path.exists(project_path):
             try:
-                # This opens the Unity Editor and tells it which project to load
+                # Command: "Run Unity.exe and load this specific project"
                 subprocess.Popen([unity_exe, "-projectPath", project_path])
-                st.success("✅ Unity is opening your project Assets!")
+                st.toast("🚀 Launching Unity Editor...")
             except Exception as e:
                 st.error(f"Launch failed: {e}")
         else:
-            st.error("❌ PATH ERROR")
-            if not unity_exists:
-                st.warning(f"Unity.exe not found at: {unity_exe}")
-            if not project_exists:
-                st.warning(f"Project folder not found at: {project_path}")
+            st.error("❌ Setup Required")
+            if not unity_exe:
+                st.warning("Unity.exe not found in C:\\Program Files\\Unity\\Hub\\Editor")
+            if not os.path.exists(project_path):
+                st.warning(f"Project not found at: {project_path}")
