@@ -49,9 +49,9 @@ def speak_text(text):
 def get_dynamic_threshold(age):
     """Adjusts sensitivity based on age to prevent false positives in young kids."""
     if age <= 7:
-        return 0.65  # Lenient
+        return 0.53  # Lenient
     elif age <= 10:
-        return 0.55  # Medium
+        return 0.52  # Medium
     else:
         return 0.50  # Strict
 
@@ -59,9 +59,9 @@ def get_severity(prob, age_threshold):
     """Categorizes the probability using sequential, non-overlapping brackets."""
     if prob < age_threshold:
         return "Normal", "green", "✅"
-    elif age_threshold <= prob < (age_threshold + 0.15):
+    elif age_threshold <= prob < (age_threshold + 0.05):
         return "Mild Dyslexia", "blue", "⚠️"
-    elif (age_threshold + 0.15) <= prob < (age_threshold + 0.30):
+    elif (age_threshold + 0.05) <= prob < (age_threshold + 0.10):
         return "Moderate Dyslexia", "orange", "🟠"
     else:
         return "Severe Dyslexia", "red", "🔴"
@@ -194,7 +194,7 @@ with t1:
             st.error(f"### Final Result: {label} {icon}")
 
         st.write(f"🕒 **Test Date (Local):** {test_date}")
-        st.info(f"📊 **Age-Adjusted Sensitivity:** Baseline set to {current_threshold*100}% for age {age}.")
+        st.info(f"**Age Specific Detection done")
 
         with st.expander("🔍 Detailed Model Performance Breakdown"):
             summary_data = []
