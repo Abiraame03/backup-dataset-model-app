@@ -1,34 +1,35 @@
 import streamlit as st
 import subprocess
 import os
-import glob
 
 def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.0):
-    # --- CONFIGURATION ---
-    # Path where Unity Hub usually installs editors
-    hub_editors_path = r"C:\Program Files\Unity\Hub\Editor"
-    # Path to your project
+    st.markdown("---")
+    st.subheader("🏗️ Unity Editor Control")
+
+    # 1. AUTO-DETECT UNITY (Checks the most likely locations)
+    possible_paths = [
+        r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe",
+        r"C:\Program Files\Unity\Hub\Editor\2022.3.10f1\Editor\Unity.exe",
+        r"C:\Program Files\Unity\Editor\Unity.exe"
+    ]
+    
+    unity_exe = next((p for p in possible_paths if os.path.exists(p)), None)
     project_path = r"C:\unity_projects\mild_levels"
 
-    # --- AUTO-PATH FINDER ---
-    # This looks for ANY Unity.exe inside the Hub folder automatically
-    search_pattern = os.path.join(hub_editors_path, "*", "Editor", "Unity.exe")
-    found_versions = glob.glob(search_pattern)
-    
-    unity_exe = found_versions[0] if found_versions else None
-
-    # --- UI RENDER ---
-    if st.button("🏗️ OPEN PROJECT ASSETS", use_container_width=True, type="primary"):
+    # 2. THE BUTTON (We use a bright color to make sure you see it)
+    if st.button("🚀 OPEN UNITY ASSETS NOW", use_container_width=True):
         if unity_exe and os.path.exists(project_path):
             try:
-                # Command: "Run Unity.exe and load this specific project"
+                # Forces Unity to open the project folder directly
                 subprocess.Popen([unity_exe, "-projectPath", project_path])
-                st.toast("🚀 Launching Unity Editor...")
+                st.success("✅ Unity is launching... check your taskbar!")
             except Exception as e:
-                st.error(f"Launch failed: {e}")
+                st.error(f"System blocked launch: {e}")
         else:
-            st.error("❌ Setup Required")
+            st.error("❌ PATH ERROR: Unity or Project not found.")
             if not unity_exe:
-                st.warning("Unity.exe not found in C:\\Program Files\\Unity\\Hub\\Editor")
+                st.warning("Could not find Unity.exe. Please verify your Unity version folder.")
             if not os.path.exists(project_path):
-                st.warning(f"Project not found at: {project_path}")
+                st.warning(f"Project folder missing at: {project_path}")
+
+    st.caption("Note: This button only works when running Streamlit on your local computer.")
