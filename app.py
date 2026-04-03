@@ -66,9 +66,9 @@ def get_severity(prob, age_threshold):
     """
     if prob < age_threshold:
         return "Normal", "green", "✅"
-    elif age_threshold <= prob < (age_threshold + 0.15):
+    elif age_threshold <= prob < (age_threshold + 0.5):
         return "Mild Dyslexia", "blue", "⚠️"
-    elif (age_threshold + 0.15) <= prob < (age_threshold + 0.30):
+    elif (age_threshold + 0.5) <= prob < (age_threshold + 0.10):
         return "Moderate Dyslexia", "orange", "🟠"
     else:
         return "Severe Dyslexia", "red", "🔴"
