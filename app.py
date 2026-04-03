@@ -199,41 +199,37 @@ with t2:
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
-
-# ================= ADDITION ONLY =================
-
-import json
-
+# ================= FIXED UNITY INTEGRATION =================
 if len(st.session_state.get("results", [])) == 3:
-
     st.markdown("---")
     st.subheader("🎮 Play in Unity")
-
+    
     avg_score = np.mean(st.session_state.results)
     label, _, _ = get_severity(avg_score, CANVAS_THRESHOLD)
 
-    if st.button("🎮 Open & Play in Unity"):
+    st.info(f"Your assessment is complete. Click below to launch the game with your **{label}** profile.")
 
-        path = r"C:/temp/unity_data.json"
-
-        level_map = {
-            "Normal": 1,
-            "Mild Dyslexia": 2,
-            "Moderate Dyslexia": 3,
-            "Severe Dyslexia": 1
-        }
-
-        data = {
-            "name": st.session_state.get("player_name", "Player"),
-            "age": st.session_state.get("player_age", 7),
-            "gender": st.session_state.get("player_gender", "Male"),
-            "level": level_map.get(label, 1)
-        }
-
-        os.makedirs("C:/temp", exist_ok=True)
-
-        with open(path, "w") as f:
-            json.dump(data, f)
-
-        st.success("✅ Data sent to Unity!")
-        st.info("👉 Now open Unity and press ▶ Play")
+    # We use a special Link instead of a standard Button to trigger the Windows protocol
+    # This matches the "unitylauncher://" setup in your .bat file
+    launch_url = f"unitylauncher://?result={label}&score={avg_score*100:.1f}"
+    
+    st.markdown(
+        f"""
+        <a href="{launch_url}" target="_self">
+            <button style="
+                width: 100%;
+                background-color: #4CAF50;
+                color: white;
+                padding: 15px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 18px;">
+                🚀 Launch Chocolate World Game
+            </button>
+        </a>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.caption("Note: You must have the 'ChocolateWorld_Launcher' registered on your PC for this to work.")
