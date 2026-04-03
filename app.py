@@ -194,7 +194,7 @@ with t1:
             st.error(f"### Final Result: {label} {icon}")
 
         st.write(f"🕒 **Test Date (Local):** {test_date}")
-        st.info(f"**Age Specific Detection done")
+        st.info(f"Age Specific Detection done")
 
         with st.expander("🔍 Detailed Model Performance Breakdown"):
             summary_data = []
