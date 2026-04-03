@@ -19,10 +19,7 @@ st.markdown("---")
 RF_MODEL_PATH = "dyslexia_RF_model_mixed_chars_sentences_v3.joblib"
 DL_MODEL_PATH = "mobilenetv2_bilstm_final.h5"
 
-# Thresholds
-CANVAS_THRESHOLD = 0.50
-UPLOAD_THRESHOLD = 0.50
-
+# Base Thresholds (Age logic will override these)
 IMG_SIZE_DL = (160, 160)
 
 PUZZLES = {
@@ -49,13 +46,29 @@ def speak_text(text):
         </script>
     """, height=0)
 
-# --- III. Logic & Accuracy Engine ---
-def get_severity(prob, threshold):
-    if prob < threshold:
+# --- III. Logic & Accuracy Engine (NEW AGE-SPECIFIC LOGIC) ---
+
+def get_dynamic_threshold(age):
+    """
+    Adjusts sensitivity based on age. 
+    Younger kids (5-7) need more margin for error (Higher Threshold).
+    """
+    if age <= 7:
+        return 0.65  # Lenient for young children
+    elif age <= 10:
+        return 0.55  # Medium
+    else:
+        return 0.50  # Strict for older children
+
+def get_severity(prob, age_threshold):
+    """
+    Categorizes the probability using the age-adjusted threshold.
+    """
+    if prob < age_threshold:
         return "Normal", "green", "✅"
-    elif threshold <= prob < (threshold + 0.5):
+    elif age_threshold <= prob < (age_threshold + 0.15):
         return "Mild Dyslexia", "blue", "⚠️"
-    elif (threshold + 0.10) <= prob < (threshold + 0.20):
+    elif (age_threshold + 0.15) <= prob < (age_threshold + 0.30):
         return "Moderate Dyslexia", "orange", "🟠"
     else:
         return "Severe Dyslexia", "red", "🔴"
@@ -72,17 +85,20 @@ def preprocess_image(gray_img):
 def ensemble_predict(gray_img, stage):
     proc = preprocess_image(gray_img)
     
+    # RF Path
     img_64 = cv2.resize(proc, (64, 64))
     feats = hog(img_64, pixels_per_cell=(8,8), cells_per_block=(2,2), feature_vector=True)
     rf_inp = np.concatenate([feats, [np.var(img_64), np.mean(img_64), 0, 0]]).reshape(1, -1)
     rf_p = rf_m.predict_proba(rf_inp)[0][1] if rf_m else 0.0
 
+    # DL Path (Using Old Model Logic)
     dl_p = 0.0
     if dl_m:
         rgb = cv2.cvtColor(proc, cv2.COLOR_GRAY2RGB)
         inp = np.expand_dims(rgb / 255.0, axis=0)
         dl_p = float(dl_m.predict(inp, verbose=0)[0][0])
 
+    # Weighted Ensemble
     if stage == 1:
         score = (rf_p * 0.9 + dl_p * 0.1)
     elif stage == 2:
@@ -115,6 +131,9 @@ if 'stage' not in st.session_state:
         'start_time': None
     })
 
+# SIDEBAR: Keep the age slider here so users can set it before starting
+age = st.sidebar.slider("Select Student Age", 5, 12, 7)
+
 t1, t2 = st.tabs(["✍️ Assessment Canvas", "📤 External File"])
 
 with t1:
@@ -122,7 +141,6 @@ with t1:
         if st.session_state.start_time is None:
             st.session_state.start_time = time.time()
 
-        age = st.sidebar.slider("Age", 5, 12, 7)
         task_list = PUZZLES["Beginner (5-7)" if age <= 7 else "Advanced (8-12)"]
         current_task = task_list[st.session_state.stage]
         
@@ -154,8 +172,12 @@ with t1:
                 else:
                     st.warning("Canvas is empty. Please draw the task.")
     else:
+        # --- FINAL CALCULATION ---
         avg_score = np.mean(st.session_state.results)
-        label, color, icon = get_severity(avg_score, CANVAS_THRESHOLD)
+        
+        # Apply Age-Specific Thresholds
+        current_threshold = get_dynamic_threshold(age)
+        label, color, icon = get_severity(avg_score, current_threshold)
         
         end_time = time.time()
         total_seconds = end_time - st.session_state.start_time
@@ -169,6 +191,7 @@ with t1:
             st.error(f"### Final Result: {label} {icon}")
 
         st.write(f"🕒 **Test Date:** {test_date}")
+        st.info(f"📊 **Age-Adjusted Sensitivity:** Baseline set to {current_threshold*100}% for age {age}.")
 
         with st.expander("🔍 Detailed Model Performance Breakdown"):
             summary_data = []
@@ -186,6 +209,10 @@ with t1:
                   delta=f"Time: {time_display}", delta_color="normal")
         from unity_launcher import show_unity_button
         show_unity_button()
+        if st.button("Restart Assessment"):
+            for key in list(st.session_state.keys()): del st.session_state[key]
+            st.rerun()
+
 with t2:
     st.header("Upload Image Analysis")
     up = st.file_uploader("Upload a photo of written text", type=['png', 'jpg', 'jpeg'])
@@ -194,8 +221,11 @@ with t2:
         st.image(up, width=400)
         if st.button("Run Sentence Analysis"):
             final_p, r_p, d_p = ensemble_predict(img_arr, stage=3)
-            label, color, icon = get_severity(final_p, UPLOAD_THRESHOLD)
+            
+            # Also apply age threshold to uploads for consistency
+            current_threshold = get_dynamic_threshold(age)
+            label, color, icon = get_severity(final_p, current_threshold)
             
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
-            st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
+            st.write(f"Combined Certainty: **{final_p*100:.1f}%** (Target Threshold: {current_threshold*100}%)")
