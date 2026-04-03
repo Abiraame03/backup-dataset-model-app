@@ -4,23 +4,20 @@ import subprocess
 
 def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.0):
     st.markdown("---")
-    st.markdown("### 🎮 Launch Chocolate World")
+    st.subheader("🎮 Start Chocolate World")
     
-    # This matches your folder name and exe name exactly
-    game_path = r"C:\unity_projects\mild_levels\Build\mild_levels.exe"
+    # This is the EXACT path from your screenshot
+    game_path = r"C:\unity_projects\mild_levels\Assets\game levles.unity"
     
-    if st.button("🚀 Launch Local Game", use_container_width=True):
+    if st.button("🚀 CLICK TO PLAY", use_container_width=True):
         if os.path.exists(game_path):
             try:
-                # This opens the EXE and passes the AI results as arguments
-                subprocess.Popen([
-                    game_path, 
-                    f"--result={final_result}", 
-                    f"--score={aggregate_index}"
-                ])
-                st.success("🚀 Game is opening! Check your taskbar.")
+                # This is the command that forces Windows to run the EXE
+                subprocess.Popen([game_path])
+                st.success("✅ Opening Game... Please wait a moment.")
             except Exception as e:
-                st.error(f"Error launching: {e}")
+                st.error(f"Error: {e}")
         else:
-            st.error(f"❌ Could not find game at: {game_path}")
-            st.info("Ensure your Unity build is in the folder: Build and named: mild_levels.exe")
+            # If you see this error, it means the file name is slightly different
+            st.error("❌ File not found at the location!")
+            st.info(f"Looking for: {game_path}")
