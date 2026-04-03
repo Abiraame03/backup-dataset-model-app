@@ -5,7 +5,7 @@ import glob
 
 def show_unity_button(final_result: str = "Normal", aggregate_index: float = 0.0):
     # 1. The folder where your Unity versions are installed
-    hub_path = r"C:\Program Files\Unity\Hub\Editor"
+    hub_path = r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe"
     
     # 2. Your specific project folder
     project_path = r"C:\unity_projects\mild_levels"
