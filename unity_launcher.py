@@ -9,7 +9,7 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
     # 1. LIST OF COMMON UNITY PATHS (It will try each one until it finds yours)
     possible_unity_paths = [
         r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe",
-        r"C:\Program Files\Unity\Editor\Unity.exe",
+        r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor",
         # Add any other paths if you installed Unity somewhere else
     ]
     
