@@ -191,7 +191,7 @@ with t1:
             st.error(f"### Final Result: {label} {icon}")
 
         st.write(f"🕒 **Test Date:** {test_date}")
-        st.info(f"**Age-Adjusted Sensitivity:** Baseline set to {current_threshold*100}% for age {age}.")
+        st.info(f"**Age-Specific Detection**")
 
         with st.expander("🔍 Detailed Model Performance Breakdown"):
             summary_data = []
