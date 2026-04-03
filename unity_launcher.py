@@ -8,7 +8,7 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
 
     # 1. PATH TO YOUR UNITY EDITOR (Check your version number!)
     # Common path: C:\Program Files\Unity\Hub\Editor\2022.3.x\Editor\Unity.exe
-    unity_exe = r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor" 
+    unity_exe = r""C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe"" 
     
     # 2. PATH TO YOUR PROJECT FOLDER
     project_path = r"C:\unity_projects\mild_levels"
