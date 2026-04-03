@@ -7,7 +7,7 @@ def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.
     st.subheader("🏗️ Open Project in Unity Editor")
 
     # PASTE YOUR PATH FROM STEP 1 HERE:
-    unity_exe = r""C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe"" 
+    unity_exe = r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe"
     
     # YOUR PROJECT FOLDER
     project_path = r"C:\unity_projects\mild_levels"
