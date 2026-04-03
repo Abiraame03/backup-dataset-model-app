@@ -54,9 +54,9 @@ def get_dynamic_threshold(age):
     Younger kids (5-7) need more margin for error (Higher Threshold).
     """
     if age <= 7:
-        return 0.55  # Lenient for young children
+        return 0.53  # Lenient for young children
     elif age <= 10:
-        return 0.55  # Medium
+        return 0.52  # Medium
     else:
         return 0.50  # Strict for older children
 
@@ -191,7 +191,7 @@ with t1:
             st.error(f"### Final Result: {label} {icon}")
 
         st.write(f"🕒 **Test Date:** {test_date}")
-        st.info(f"📊 **Age-Adjusted Sensitivity:** Baseline set to {current_threshold*100}% for age {age}.")
+        st.info(f"**Age-Adjusted Sensitivity:** Baseline set to {current_threshold*100}% for age {age}.")
 
         with st.expander("🔍 Detailed Model Performance Breakdown"):
             summary_data = []
