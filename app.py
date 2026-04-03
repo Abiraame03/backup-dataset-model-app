@@ -199,34 +199,3 @@ with t2:
             st.markdown(f"## {icon} Detection: :{color}[{label}]")
             st.progress(final_p)
             st.write(f"Combined Certainty: **{final_p*100:.1f}%**")
-# ================= FIXED UNITY INTEGRATION =================
-# ================= FINAL UNITY WINDOWS LAUNCHER =================
-if len(st.session_state.get("results", [])) == 3:
-    st.markdown("---")
-    st.subheader("🎮 Play in Unity")
-    
-    avg_score = np.mean(st.session_state.results)
-    label, _, _ = get_severity(avg_score, CANVAS_THRESHOLD)
-
-    st.success(f"Assessment Complete! Profile: **{label}**")
-    
-    # 1. This is the exact path to your newly built game
-    # Ensure you renamed 'mild_levels.exe' to 'ChocolateWorld.exe' in your folder!
-    game_path = r"C:\unity_projects\mild_levels\Build\mild_levels.exe"
-    
-    # 2. This button will trigger the local file launch
-    if st.button("🚀 Launch Chocolate World Game", use_container_width=True):
-        if os.path.exists(game_path):
-            try:
-                # This opens the .exe and passes the AI result as an argument
-                import subprocess
-                subprocess.Popen([game_path, f"--profile={label}", f"--score={avg_score*100:.1f}"])
-                st.balloons()
-                st.info("Check your taskbar! The game is starting...")
-            except Exception as e:
-                st.error(f"Error launching game: {e}")
-        else:
-            # This error appears if the folder path or file name is wrong
-            st.error("❌ Game Not Found!")
-            st.code(f"Missing File: {game_path}")
-            st.warning("Check your folder: C:\\unity_projects\\mild_levels\\Build\\ and ensure the file is named 'ChocolateWorld.exe'")
