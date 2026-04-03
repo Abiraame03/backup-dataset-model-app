@@ -4,25 +4,36 @@ import os
 
 def show_unity_button(final_result: str = "Unknown", aggregate_index: float = 0.0):
     st.markdown("---")
-    st.subheader("🛠️ Open Project in Unity Editor")
+    st.subheader("🏗️ Open Project in Unity Editor")
 
-    # 1. PATH TO YOUR UNITY EDITOR (Check your version number!)
-    # Common path: C:\Program Files\Unity\Hub\Editor\2022.3.x\Editor\Unity.exe
-    unity_exe = r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe"
+    # 1. LIST OF COMMON UNITY PATHS (It will try each one until it finds yours)
+    possible_unity_paths = [
+        r"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe",
+        r"C:\Program Files\Unity\Editor\Unity.exe",
+        # Add any other paths if you installed Unity somewhere else
+    ]
     
-    # 2. PATH TO YOUR PROJECT FOLDER
+    # 2. YOUR PROJECT PATH
     project_path = r"C:\unity_projects\mild_levels"
 
-    if st.button("🏗️ Open Project in Editor", use_container_width=True):
-        if os.path.exists(unity_exe) and os.path.exists(project_path):
+    # Find which Unity path actually exists on your PC
+    unity_exe = None
+    for path in possible_unity_paths:
+        if os.path.exists(path):
+            unity_exe = path
+            break
+
+    if st.button("🏗️ Open Assets in Unity", use_container_width=True):
+        if unity_exe and os.path.exists(project_path):
             try:
-                # This command tells Unity to open the specific project folder
+                # Opens Unity directly to your 'mild_levels' project
                 subprocess.Popen([unity_exe, "-projectPath", project_path])
-                st.success("✅ Unity is launching your project...")
+                st.success("✅ Unity is launching your project Assets...")
             except Exception as e:
-                st.error(f"Failed to launch Unity: {e}")
+                st.error(f"Launch failed: {e}")
         else:
-            st.error("❌ Path Error!")
-            st.info(f"Checking Unity: {os.path.exists(unity_exe)}")
-            st.info(f"Checking Project: {os.path.exists(project_path)}")
-            st.warning("Please verify the 'unity_exe' path matches your version of Unity.")
+            st.error("❌ PATH ERROR")
+            if not unity_exe:
+                st.warning("I cannot find Unity.exe. Please check where Unity is installed on your C: drive.")
+            if not os.path.exists(project_path):
+                st.warning(f"I cannot find your project at: {project_path}")
