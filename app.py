@@ -185,6 +185,8 @@ with t1:
         st.metric("Aggregate Index", f"{avg_score*100:.1f}%", 
                   delta=f"Time: {time_display}", delta_color="normal")
         from unity_launcher import show_unity_button
+        st.sidebar.markdown("---")
+        st.sidebar.header("Unity Project Assets")
         show_unity_button()
 with t2:
     st.header("Upload Image Analysis")
