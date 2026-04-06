@@ -49,7 +49,7 @@ def speak_text(text):
 def get_dynamic_threshold(age):
     """Adjusts sensitivity based on age to prevent false positives in young kids."""
     if age <= 7:
-        return 0.53  # Lenient
+        return 0.55  # Lenient
     elif age <= 10:
         return 0.52  # Medium
     else:
