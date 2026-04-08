@@ -51,7 +51,7 @@ def get_dynamic_threshold(age):
     if age <= 7:
         return 0.55  # Lenient
     elif age <= 10:
-        return 0.45  # Medium
+        return 0.52  # Medium
     else:
         return 0.50  # Strict
 
